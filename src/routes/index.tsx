@@ -30,10 +30,105 @@ export const Route = createFileRoute("/")({
 });
 
 const BRAND = "#ff6b00";
-const USER_AVATAR = new URL("../assets/user.jpg", import.meta.url).href;
-const PRODUCT_ITEM = "Plushie Aya Bunny";
-const PRODUCT_ORDER = "#SaaS-88219";
+const USER_AVATAR = "https://i.postimg.cc/pVSsv7cK/Whats-App-Image-2026-05-08-at-01-33-44.jpg";
 const CUSTOMER_NAME = "Tarun Choudhary";
+
+function resolveAvatarUrl(avatar?: string) {
+  if (!avatar) return USER_AVATAR;
+  if (avatar.startsWith("data:image/")) return avatar;
+  if (avatar.includes("i.postimg.cc")) return USER_AVATAR;
+  if (avatar.startsWith("https://") && !avatar.includes("@fs")) return avatar;
+  if (avatar.startsWith("http://") && !avatar.includes("@fs") && !avatar.includes("localhost"))
+    return avatar;
+  return USER_AVATAR;
+}
+
+type PurchaseOrder = {
+  id: string;
+  item: string;
+  orderId: string;
+  price: string;
+  originalPrice?: string;
+  color: string;
+  orderDate: string;
+  image: string;
+  status: "Delivered" | "Shipped" | "Processing";
+  panelBg: string;
+  media:
+    | { type: "sketchfab"; title: string; src: string }
+    | { type: "image"; src: string; alt: string };
+};
+
+const PURCHASE_ORDERS: PurchaseOrder[] = [
+  {
+    id: "1",
+    item: "SoundHub 7G Black Headphones",
+    orderId: "#SaaS-88219",
+    price: "₹1,900.00",
+    originalPrice: "₹2,280.00",
+    color: "Dark Black",
+    orderDate: "June 07, 2026",
+    image: "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
+    status: "Delivered",
+    panelBg: "#fffff",
+    media: {
+      type: "sketchfab",
+      title: "SoundHub 7G Black Headphones",
+      src:
+      "https://sketchfab.com/models/87ddc4f9942b41bab65375ec5895e9c2/embed?autostart=1&autospin=1&preload=1&ui_controls=0&ui_infos=0&ui_stop=0&transparent=1",    },
+  },
+  {
+    id: "2",
+    item: 'MacBook Pro 14" M1 Chip',
+    orderId: "#SaaS-77102",
+    price: "₹1,24,900.00",
+    color: "Space Gray",
+    image: "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
+    orderDate: "Dec 20, 2023",
+    status: "Delivered",
+    panelBg: "#f5f5f7",
+    media: {
+      type: "sketchfab",
+      title: "SoundHub 7G Black Headphones",
+      src:
+      "https://sketchfab.com/models/0b2d0f88b95c4d40952990e9e07c952a/embed?autospin=1&autostart=1&transparent=1&ui_theme=dark",    },
+  },
+ 
+  {
+    id: "3",
+    item: "Classic Leather Timepiece",
+    orderId: "#SaaS-65431",
+    price: "₹8,499.00",
+    originalPrice: "₹9,999.00",
+    image: "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
+    color: "Brown Leather",
+    orderDate: "Nov 05, 2023",
+    status: "Delivered",
+    panelBg: "#faf8f5",
+    media: {
+      type: "sketchfab",
+      title: "Samsung Galaxy Buds4 Pro Pink Gold",
+      src: "https://sketchfab.com/models/a903a7736dbe4b8f966bb90fef020490/embed?autospin=1&autostart=1&transparent=1&ui_theme=dark",
+      
+    },
+  },
+  {
+    id: "4",
+    item: "SoundHub Pro Wireless Earbuds",
+    orderId: "#SaaS-90344",
+    price: "₹2,499.00",
+    image: "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
+    originalPrice: "₹3,199.00",
+    color: "Matte White",
+    orderDate: "Mar 14, 2026",
+    status: "Shipped",
+    panelBg: "#fff8f3",
+    media: {
+      type: "image",
+      src: "https://sketchfab.com/models/87ddc4f9942b41bab65375ec5895e9c2/embed?autospin=1&preload=1&transparent=1&ui_theme=dark",      alt: "SoundHub Pro Wireless Earbuds",
+    },
+  },
+];
 
 function formatReviewDate(createdAt?: string) {
   if (!createdAt) return "";
@@ -137,6 +232,10 @@ function CustomerDetailPage() {
   const [activeTab, setActiveTab] = useState<string>("Review");
   const phState = usePurchaseHistoryFormState();
   const productReviewFormRef = useRef<HTMLDivElement>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const selectedOrder =
+    PURCHASE_ORDERS.find((order) => order.id === selectedOrderId) ?? null;
+  const activeProductItem = selectedOrder?.item ?? PURCHASE_ORDERS[0].item;
 
   // Fetch reviews from backend
   const { data: reviewsData, refetch: refetchReviews } = useQuery({
@@ -149,7 +248,7 @@ function CustomerDetailPage() {
   });
 
   const reviews = Array.isArray(reviewsData) ? reviewsData : [];
-  const productReviews = reviews.filter((review) => review.item === PRODUCT_ITEM);
+  const productReviews = reviews.filter((review) => review.item === activeProductItem);
   const productReviewCount = productReviews.length;
   const productAverageRating =
     productReviewCount === 0
@@ -286,7 +385,7 @@ function CustomerDetailPage() {
       stars: draft.stars,
       published: draft.publish,
       author,
-      avatar: draft.avatar || USER_AVATAR,
+      avatar: resolveAvatarUrl(draft.avatar || USER_AVATAR),
       images: draft.images.map((url) => ({
         url,
         uploadedAt: new Date().toISOString(),
@@ -295,18 +394,26 @@ function CustomerDetailPage() {
     });
   };
 
+  const handleSelectOrderForReview = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    phState.resetForm();
+    productReviewFormRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   const handleProductReviewSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!phState.rating || !phState.feedback.trim()) return;
 
+    const order = selectedOrder ?? PURCHASE_ORDERS[0];
+
     await createReviewMutation.mutateAsync({
-      order: PRODUCT_ORDER,
-      item: PRODUCT_ITEM,
+      order: order.orderId,
+      item: order.item,
       text: phState.feedback.trim(),
       stars: phState.rating,
       published: true,
       author: phState.title.trim() || CUSTOMER_NAME,
-      avatar: USER_AVATAR,
+      avatar: resolveAvatarUrl(USER_AVATAR),
       images: [],
       createdAt: new Date().toISOString(),
     });
@@ -587,9 +694,9 @@ function CustomerDetailPage() {
                   state={phState}
                   reviews={productReviews}
                   reviewCount={productReviewCount}
-                  onWriteReview={() =>
-                    productReviewFormRef.current?.scrollIntoView({ behavior: "smooth" })
-                  }
+                  activeProductItem={activeProductItem}
+                  selectedOrderId={selectedOrderId}
+                  onWriteReview={handleSelectOrderForReview}
                 />
               )}
               {activeTab !== "Purchase History" && (
@@ -918,7 +1025,7 @@ function CustomerDetailPage() {
                       item={r.item}
                       text={r.text}
                       author={r.author}
-                      avatar={r.avatar || FALLBACK_AVATAR}
+                      avatar={resolveAvatarUrl(r.avatar)}
                       images={r.images}
                       onTogglePublished={
                         r._id
@@ -944,6 +1051,7 @@ function CustomerDetailPage() {
               <aside className="w-80 flex-none border-l border-gray-100 overflow-y-auto bg-white">
                 <PurchaseHistorySidebar
                   state={phState}
+                  selectedOrder={selectedOrder}
                   reviewCount={productReviewCount}
                   averageRating={productAverageRating}
                   ratingRows={productRatingRows}
@@ -1198,9 +1306,6 @@ function ReviewItem({
   );
 }
 
-const PRODUCT_IMG =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuAlCxKLBjTab1EwQAlE5jPgg-qp-wI7ErlMszlfYayRZ2Fz-83ngk0zczijXKv-f5nAIF6R0pGKmMzI4KNR5-apLEwyoEzPSsemBQymHtv_5lLMN7pqCFpdBSiI34YXkkgoSoZnCld-KfA1G7XjoXsTx56Mp4tczQu7MQEhKOLiH5MipLYkNSwvsRHja6TD1LQsNCmFiq4qUGjPMwftj2INmu_XfD6T_imGfTKUypX6ETWRUxFRqIxqaJy6ardRIbuyOKuRfz8WtVc";
-
 type ProductReview = {
   _id?: string;
   author: string;
@@ -1242,16 +1347,219 @@ function usePurchaseHistoryFormState() {
 
 type PHState = ReturnType<typeof usePurchaseHistoryFormState>;
 
+function OrderStatusBadge({ status }: { status: PurchaseOrder["status"] }) {
+  const styles =
+    status === "Delivered"
+      ? "text-emerald-600"
+      : status === "Shipped"
+        ? "text-sky-600"
+        : "text-amber-600";
+
+  return (
+    <p className={`text-sm font-semibold flex items-center gap-1 ${styles}`}>
+      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+        <path
+          fillRule="evenodd"
+          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+          clipRule="evenodd"
+        />
+      </svg>
+      {status}
+    </p>
+  );
+}
+const PRODUCT_IMAGES = {
+  headphones:
+    "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
+
+  macbook:
+    "https://pngimg.com/uploads/macbook/macbook_PNG65.png",
+
+  earbuds:
+    "https://pngimg.com/uploads/airpods/airpods_PNG17.png",
+
+  watch:
+    "https://pngimg.com/uploads/watches/watches_PNG9894.png",
+
+  speaker:
+    "https://pngimg.com/uploads/speaker/speaker_PNG36.png",
+
+  keyboard:
+    "https://pngimg.com/uploads/keyboard/keyboard_PNG101836.png",
+
+  mouse:
+    "https://pngimg.com/uploads/computer_mouse/computer_mouse_PNG7674.png",
+
+  camera:
+    "https://pngimg.com/uploads/camera/camera_PNG102.png",
+};
+function PurchaseOrderCard({
+  order,
+  isSelected,
+  onWriteReview,
+}: {
+  order: PurchaseOrder;
+  isSelected: boolean;
+  onWriteReview: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <section
+      className={`rounded-xl bg-white shadow-sm overflow-hidden transition-all ${
+        isSelected
+          ? "border-2 ring-2 ring-[#ff6b00]/20"
+          : "border border-gray-200"
+      }`}
+      style={isSelected ? { borderColor: BRAND } : undefined}
+    >
+      <div className="flex flex-col md:flex-row">
+        <div
+          className="md:w-1/3 p-4 flex flex-col items-center justify-center"
+          style={{ backgroundColor: order.panelBg }}
+        >
+          {order.media.type === "sketchfab" ? (
+            <div
+              className="relative w-full h-56 md:h-64 overflow-hidden rounded-lg"
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
+            >
+              {/* Thumbnail */}
+              <img
+                src="https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png"
+                alt={order.item}
+                className={`absolute inset-0 w-full h-full object-contain transition-all duration-300 ${
+                  hovered ? "opacity-0 scale-95" : "opacity-100 scale-100"
+                }`}
+              />
+
+              {/* Sketchfab Model */}
+              <iframe
+                title={order.media.title}
+                className={`absolute inset-0 w-full h-full border-0 transition-all duration-300 ${
+                  hovered
+                    ? "opacity-100 scale-100"
+                    : "opacity-0 scale-105 pointer-events-none"
+                }`}
+                frameBorder="0"
+                allowFullScreen
+                loading="eager"
+                allow="autoplay; fullscreen; xr-spatial-tracking"
+                src={order.media.src}
+              />
+            </div>
+          ) : (
+            <img
+              src={order.media.src}
+              alt={order.media.alt}
+              className="max-w-full max-h-56 object-contain drop-shadow-xl"
+            />
+          )}
+        </div>
+
+        <div className="flex-1 p-6">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <span className="bg-sky-400 text-white px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide mb-2 inline-block">
+                Purchased
+              </span>
+
+              <h3 className="text-2xl font-bold" style={{ color: BRAND }}>
+                {order.item}
+              </h3>
+            </div>
+
+            <div className="text-right">
+              <p className="text-2xl font-bold">{order.price}</p>
+
+              {order.originalPrice && (
+                <p className="text-xs text-gray-400 line-through">
+                  {order.originalPrice}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-y-4 mb-6">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                Color
+              </p>
+              <p className="text-sm font-semibold">{order.color}</p>
+            </div>
+
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                Order Date
+              </p>
+              <p className="text-sm font-semibold">{order.orderDate}</p>
+            </div>
+
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                Order ID
+              </p>
+              <p className="text-sm font-semibold">{order.orderId}</p>
+            </div>
+
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                Status
+              </p>
+              <OrderStatusBadge status={order.status} />
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onWriteReview}
+              className="text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90"
+              style={{ backgroundColor: BRAND }}
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              </svg>
+
+              Write a Review
+            </button>
+
+            <button
+              type="button"
+              className="border border-gray-300 px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-50"
+            >
+              Buy Again
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 function PurchaseHistoryMain({
   state,
   reviews,
   reviewCount,
+  activeProductItem,
+  selectedOrderId,
   onWriteReview,
 }: {
   state: PHState;
   reviews: ProductReview[];
   reviewCount: number;
-  onWriteReview: () => void;
+  activeProductItem: string;
+  selectedOrderId: string | null;
+  onWriteReview: (orderId: string) => void;
 }) {
   const { subTab, setSubTab } = state;
   return (
@@ -1272,81 +1580,16 @@ function PurchaseHistoryMain({
         Review your recent purchase and share your experience with the community.
       </p>
 
-      <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-8">
-        <div className="flex flex-col md:flex-row">
-          <div className="md:w-1/3 bg-[#fff1eb] p-6 flex items-center justify-center">
-            <img
-              src={PRODUCT_IMG}
-              alt="Plushie Aya Bunny"
-              className="max-w-full max-h-56 object-contain drop-shadow-xl"
-            />
-          </div>
-          <div className="flex-1 p-6">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <span className="bg-sky-400 text-white px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide mb-2 inline-block">
-                  Purchased
-                </span>
-                <h3 className="text-2xl font-bold" style={{ color: BRAND }}>
-                  {PRODUCT_ITEM}
-                </h3>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold">$19.00</p>
-                <p className="text-xs text-gray-400 line-through">$28.00</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-y-4 mb-6">
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-gray-500">Color</p>
-                <p className="text-sm font-semibold">Creamy White</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-gray-500">Order Date</p>
-                <p className="text-sm font-semibold">Oct 12, 2023</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-gray-500">Order ID</p>
-                <p className="text-sm font-semibold">{PRODUCT_ORDER}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-gray-500">Status</p>
-                <p className="text-sm font-semibold text-emerald-600 flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  Delivered
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onWriteReview}
-                className="text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90"
-                style={{ backgroundColor: BRAND }}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-                Write a Review
-              </button>
-              <button className="border border-gray-300 px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-50">
-                Buy Again
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
+      <div className="space-y-6 mb-8">
+        {PURCHASE_ORDERS.map((order) => (
+          <PurchaseOrderCard
+            key={order.id}
+            order={order}
+            isSelected={selectedOrderId === order.id}
+            onWriteReview={() => onWriteReview(order.id)}
+          />
+        ))}
+      </div>
 
       <nav className="flex gap-8 border-b border-gray-200 mb-6">
         {(
@@ -1403,7 +1646,12 @@ function PurchaseHistoryMain({
                 <p className="text-sm text-gray-500 mb-4">No reviews for this product yet.</p>
                 <button
                   type="button"
-                  onClick={onWriteReview}
+                  onClick={() => {
+                    const order =
+                      PURCHASE_ORDERS.find((o) => o.item === activeProductItem) ??
+                      PURCHASE_ORDERS[0];
+                    onWriteReview(order.id);
+                  }}
                   className="text-sm font-bold hover:underline"
                   style={{ color: BRAND }}
                 >
@@ -1412,14 +1660,11 @@ function PurchaseHistoryMain({
               </div>
             ) : (
               reviews.map((r) => (
-                <article
-                  key={r._id}
-                  className="bg-white p-5 rounded-xl border border-gray-200"
-                >
+                <article key={r._id} className="bg-white p-5 rounded-xl border border-gray-200">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center gap-3">
                       <img
-                        src={r.avatar || USER_AVATAR}
+                        src={resolveAvatarUrl(r.avatar)}
                         alt={r.author}
                         className="w-10 h-10 rounded-full object-cover"
                       />
@@ -1462,7 +1707,8 @@ function PurchaseHistoryMain({
           {reviewCount > 0 && (
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-500">
-                Showing {reviewCount} {reviewCount === 1 ? "review" : "reviews"} for {PRODUCT_ITEM}
+                Showing {reviewCount} {reviewCount === 1 ? "review" : "reviews"} for{" "}
+                {activeProductItem}
               </p>
             </div>
           )}
@@ -1485,6 +1731,7 @@ function PurchaseHistoryMain({
 
 function PurchaseHistorySidebar({
   state,
+  selectedOrder,
   reviewCount,
   averageRating,
   ratingRows,
@@ -1493,6 +1740,7 @@ function PurchaseHistorySidebar({
   formRef,
 }: {
   state: PHState;
+  selectedOrder: PurchaseOrder | null;
   reviewCount: number;
   averageRating: string;
   ratingRows: ReturnType<typeof buildRatingRows>;
@@ -1541,7 +1789,16 @@ function PurchaseHistorySidebar({
       </div>
 
       <div ref={formRef} className="p-6 border-b border-gray-100">
-        <h4 className="text-sm font-bold text-gray-900 mb-4">Write a Review</h4>
+        <h4 className="text-sm font-bold text-gray-900 mb-2">Write a Review</h4>
+        {selectedOrder ? (
+          <p className="text-sm font-semibold mb-4" style={{ color: BRAND }}>
+            Add review for {selectedOrder.item}
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500 mb-4">
+            Select a purchase and click &quot;Write a Review&quot; to get started.
+          </p>
+        )}
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label className="text-[11px] uppercase tracking-wide text-gray-500 block mb-2">
@@ -1590,7 +1847,7 @@ function PurchaseHistorySidebar({
             type="submit"
             className="w-full text-white py-3 rounded-lg text-sm font-bold hover:brightness-110 disabled:opacity-50"
             style={{ backgroundColor: BRAND }}
-            disabled={!rating || !feedback.trim() || isSubmitting}
+            disabled={!selectedOrder || !rating || !feedback.trim() || isSubmitting}
           >
             {isSubmitting ? "Submitting..." : "Submit Review"}
           </button>
@@ -1605,26 +1862,21 @@ function PurchaseHistorySidebar({
           </a>
         </div>
         <div className="space-y-2">
-          {[
-            {
-              name: 'MacBook Pro 14" M1 Chip',
-              date: "Ordered Dec 20, 2023",
-              img: "https://lh3.googleusercontent.com/aida-public/AB6AXuCUw_WKKKXOlKISiAkEugxg1OM76IvAGriYjPFgAoCpZQX1jCkSisFBet--PWMcBkSaaU3AZyyZvWcyg7KYtNaYMMlzHjHzRzaEm57Zu524E84C5jb4m6_HLONYKT7Q-Fsw_2ZCDvwYSWOFT03yYTp8CSEJXWVlE3UlAIPDrPve4oeHPsxNoJ3fArC8xqew5U1KAOkSSy7nGa7d7dSYc6nJu7EkbhrhRFlqycLq-vPE5fNn7myx2xV9xEZylJuYtXHdGK6K1ktfPks",
-            },
-            {
-              name: "Classic Leather Timepiece",
-              date: "Ordered Nov 05, 2023",
-              img: "https://lh3.googleusercontent.com/aida-public/AB6AXuCsV5xn7Kfr9ik934UtNOUFbbqASAmkpo7JnDVR4yPejeDChFFYXzXKzJ7OJmJ5eZsklN2LHux_eOhETMNc85vWIMGyYtbfL9IP20Ifiu3rkYRYQ_928jxgNOP6JcVZZYwcLdtmQfLprlkEh-6YKY4HwUUvdAYA5DXufWXwruVuPjC-oizGkMhOO81H5SOvBMhIEaX1gy_-VsYykdJGL13l26ODW3Qy35P4TBNpOtVDT2RwZyfAUhKug63T8sJtbv-81r6Eda2pgtY",
-            },
-          ].map((p) => (
+          {PURCHASE_ORDERS.slice(1).map((order) => {
+            const thumb =
+              order.media.type === "sketchfab"
+                ? order.media.src
+                : "https://sketchfab.com/models/a903a7736dbe4b8f966bb90fef020490/embed?autospin=1&autostart=1&transparent=1&ui_theme=dark";
+
+            return (
             <div
-              key={p.name}
+              key={order.id}
               className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 cursor-pointer border border-transparent hover:border-gray-200"
             >
-              <img src={p.img} alt={p.name} className="w-12 h-12 rounded-lg object-cover" />
+              <img src={thumb} alt={order.item} className="w-12 h-12 rounded-lg object-cover" />
               <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-bold truncate">{p.name}</h4>
-                <p className="text-xs text-gray-500">{p.date}</p>
+                <h4 className="text-sm font-bold truncate">{order.item}</h4>
+                <p className="text-xs text-gray-500">Ordered {order.orderDate}</p>
               </div>
               <svg
                 className="w-4 h-4 text-gray-400"
@@ -1640,7 +1892,8 @@ function PurchaseHistorySidebar({
                 />
               </svg>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </>

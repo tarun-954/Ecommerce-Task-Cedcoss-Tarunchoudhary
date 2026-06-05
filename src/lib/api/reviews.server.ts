@@ -5,11 +5,22 @@ import { getDatabase } from "@/lib/db/mongo";
 import { ReviewSchema, type ReviewDocument } from "@/lib/db/schemas";
 
 const imageUrlSchema = z.union([z.string().url(), z.string().startsWith("data:image/")]);
+const DEFAULT_AVATAR =
+  "https://i.postimg.cc/pVSsv7cK/Whats-App-Image-2026-05-08-at-01-33-44.jpg";
+
+function normalizeAvatarUrl(avatar?: string) {
+  if (!avatar) return undefined;
+  if (avatar.startsWith("data:image/")) return avatar;
+  if (avatar.includes("i.postimg.cc")) return DEFAULT_AVATAR;
+  if (avatar.includes("@fs/") || avatar.includes("localhost")) return DEFAULT_AVATAR;
+  return avatar;
+}
 
 function serializeReview(doc: ReviewDocument) {
   return {
     ...doc,
     _id: doc._id.toString(),
+    avatar: normalizeAvatarUrl(doc.avatar),
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
     updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : doc.updatedAt,
     images: doc.images.map((image) => ({
@@ -74,6 +85,7 @@ export const createReviewServerFn = createServerFn({ method: "POST" })
       });
       const validated = ReviewSchema.parse({
         ...review,
+        avatar: normalizeAvatarUrl(review.avatar),
         images: review.images.map((image) => ({
           ...image,
           uploadedAt: new Date(image.uploadedAt),

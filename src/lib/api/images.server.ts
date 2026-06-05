@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { ObjectId } from "mongodb";
+import { ObjectId, type UpdateFilter } from "mongodb";
 import { getDatabase } from "@/lib/db/mongo";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -89,19 +89,12 @@ export const addImageToReviewServerFn = createServerFn({
         uploadedAt: new Date(),
       };
 
-      const result = await db.collection("reviews").updateOne(
-        {
-          _id: new ObjectId(id),
-        },
-        {
-          $push: {
-            images: image,
-          } as any,
-          $set: {
-            updatedAt: new Date(),
-          },
-        },
-      );
+      const update: UpdateFilter<{ images: ReviewImage[]; updatedAt: Date }> = {
+        $push: { images: image },
+        $set: { updatedAt: new Date() },
+      };
+
+      const result = await db.collection("reviews").updateOne({ _id: new ObjectId(id) }, update);
 
       if (result.matchedCount === 0) {
         return {
@@ -143,21 +136,12 @@ export const removeImageFromReviewServerFn = createServerFn({
 
       const db = await getDatabase();
 
-      const result = await db.collection("reviews").updateOne(
-        {
-          _id: new ObjectId(id),
-        },
-        {
-          $pull: {
-            images: {
-              url: imageUrl,
-            },
-          } as any,
-          $set: {
-            updatedAt: new Date(),
-          },
-        },
-      );
+      const update: UpdateFilter<{ images: { url: string }[]; updatedAt: Date }> = {
+        $pull: { images: { url: imageUrl } },
+        $set: { updatedAt: new Date() },
+      };
+
+      const result = await db.collection("reviews").updateOne({ _id: new ObjectId(id) }, update);
 
       if (result.matchedCount === 0) {
         return {
