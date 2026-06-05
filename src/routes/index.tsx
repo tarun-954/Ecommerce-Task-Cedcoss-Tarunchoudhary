@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createReviewServerFn,
@@ -30,7 +30,32 @@ export const Route = createFileRoute("/")({
 });
 
 const BRAND = "#ff6b00";
-const USER_AVATAR = new URL("../assets/user.jpeg", import.meta.url).href;
+const USER_AVATAR = new URL("../assets/user.jpg", import.meta.url).href;
+const PRODUCT_ITEM = "Plushie Aya Bunny";
+const PRODUCT_ORDER = "#SaaS-88219";
+const CUSTOMER_NAME = "Tarun Choudhary";
+
+function formatReviewDate(createdAt?: string) {
+  if (!createdAt) return "";
+  return new Date(createdAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function buildRatingRows(reviewList: { stars: number }[]) {
+  const count = reviewList.length;
+  return [5, 4, 3, 2, 1].map((stars) => {
+    const starCount = reviewList.filter((review) => review.stars === stars).length;
+    return {
+      label: stars === 1 ? "1 Star" : `${stars} Stars`,
+      pct: count === 0 ? 0 : Math.round((starCount / count) * 100),
+      count: starCount,
+      stars,
+    };
+  });
+}
 
 function Star({ className = "w-5 h-5", filled = true }: { className?: string; filled?: boolean }) {
   return (
@@ -38,7 +63,7 @@ function Star({ className = "w-5 h-5", filled = true }: { className?: string; fi
       className={`${className} ${filled ? "text-yellow-400" : "text-gray-200"} fill-current`}
       viewBox="0 0 20 20"
     >
-      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.46１a１ １ ０ ００．９５１－．６９ｌ１．０７－３．２９２ｚ" />
+      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
     </svg>
   );
 }
@@ -94,8 +119,7 @@ function CustomerDetailPage() {
     createdAt?: string;
   };
 
-  const FALLBACK_AVATAR =
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuBFCvwytqibzlFdHubko_JJGsym03sxWXWb24dOH0Y1s9a6lzcEuw_mFF34PWk-Wj7Sp5J9ZS5V2nClJpQmo6-fgLeLzzNgRoSU3A3toDUooTI9ETmsXA7NbsLDzIEGMCL0cw0igSBb_ovd1U5PlQOrwqtzvlExeKKkXvN_T7bsgEu7Pf5s6KVfuHv9AfT-J5ryp8y6lJ9zi9a4SS1nEqklBeAPZfG7FiRjnBGbMVEG-G_JJtpgv88SqTaG9h2d3La7W4jNr56jlwo";
+  const FALLBACK_AVATAR = USER_AVATAR;
 
   const customerId = "customer-56578"; // In real app, get from auth context
   const [showForm, setShowForm] = useState(false);
@@ -111,7 +135,8 @@ function CustomerDetailPage() {
   });
   const [hoverStar, setHoverStar] = useState(0);
   const [activeTab, setActiveTab] = useState<string>("Review");
-  const phState = usePurchaseHistoryState();
+  const phState = usePurchaseHistoryFormState();
+  const productReviewFormRef = useRef<HTMLDivElement>(null);
 
   // Fetch reviews from backend
   const { data: reviewsData, refetch: refetchReviews } = useQuery({
@@ -124,6 +149,15 @@ function CustomerDetailPage() {
   });
 
   const reviews = Array.isArray(reviewsData) ? reviewsData : [];
+  const productReviews = reviews.filter((review) => review.item === PRODUCT_ITEM);
+  const productReviewCount = productReviews.length;
+  const productAverageRating =
+    productReviewCount === 0
+      ? "0.0"
+      : (
+          productReviews.reduce((sum, review) => sum + review.stars, 0) / productReviewCount
+        ).toFixed(1);
+  const productRatingRows = buildRatingRows(productReviews);
   const reviewCount = reviews.length;
   const averageRating =
     reviewCount === 0
@@ -252,13 +286,31 @@ function CustomerDetailPage() {
       stars: draft.stars,
       published: draft.publish,
       author,
-      avatar: draft.avatar || FALLBACK_AVATAR,
+      avatar: draft.avatar || USER_AVATAR,
       images: draft.images.map((url) => ({
         url,
         uploadedAt: new Date().toISOString(),
       })),
       createdAt: new Date().toISOString(),
     });
+  };
+
+  const handleProductReviewSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!phState.rating || !phState.feedback.trim()) return;
+
+    await createReviewMutation.mutateAsync({
+      order: PRODUCT_ORDER,
+      item: PRODUCT_ITEM,
+      text: phState.feedback.trim(),
+      stars: phState.rating,
+      published: true,
+      author: phState.title.trim() || CUSTOMER_NAME,
+      avatar: USER_AVATAR,
+      images: [],
+      createdAt: new Date().toISOString(),
+    });
+    phState.resetForm();
   };
 
   return (
@@ -530,7 +582,16 @@ function CustomerDetailPage() {
                 </nav>
               </div>
 
-              {activeTab === "Purchase History" && <PurchaseHistoryMain state={phState} />}
+              {activeTab === "Purchase History" && (
+                <PurchaseHistoryMain
+                  state={phState}
+                  reviews={productReviews}
+                  reviewCount={productReviewCount}
+                  onWriteReview={() =>
+                    productReviewFormRef.current?.scrollIntoView({ behavior: "smooth" })
+                  }
+                />
+              )}
               {activeTab !== "Purchase History" && (
                 <>
                   {/* AI Card */}
@@ -881,7 +942,15 @@ function CustomerDetailPage() {
 
             {activeTab === "Purchase History" ? (
               <aside className="w-80 flex-none border-l border-gray-100 overflow-y-auto bg-white">
-                <PurchaseHistorySidebar state={phState} />
+                <PurchaseHistorySidebar
+                  state={phState}
+                  reviewCount={productReviewCount}
+                  averageRating={productAverageRating}
+                  ratingRows={productRatingRows}
+                  onSubmit={handleProductReviewSubmit}
+                  isSubmitting={createReviewMutation.isPending}
+                  formRef={productReviewFormRef}
+                />
               </aside>
             ) : (
               <aside className="w-80 flex-none border-l border-gray-100 overflow-y-auto bg-white">
@@ -1129,69 +1198,27 @@ function ReviewItem({
   );
 }
 
-type PHReview = {
-  id: string;
-  author: string;
-  avatar: string;
-  date: string;
-  stars: number;
-  text: string;
-  helpful: number;
-};
-
 const PRODUCT_IMG =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuAlCxKLBjTab1EwQAlE5jPgg-qp-wI7ErlMszlfYayRZ2Fz-83ngk0zczijXKv-f5nAIF6R0pGKmMzI4KNR5-apLEwyoEzPSsemBQymHtv_5lLMN7pqCFpdBSiI34YXkkgoSoZnCld-KfA1G7XjoXsTx56Mp4tczQu7MQEhKOLiH5MipLYkNSwvsRHja6TD1LQsNCmFiq4qUGjPMwftj2INmu_XfD6T_imGfTKUypX6ETWRUxFRqIxqaJy6ardRIbuyOKuRfz8WtVc";
-const INITIAL_PH: PHReview[] = [
-  {
-    id: "p1",
-    author: "Brooklyn Simmons",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBYapIpqgelX3gqabM7mfcvduKoAbf_41_Azg0Z2fxbCTc7Vb2Aln1-U2XUVxl4jcWo00ZrDp9lOVnL1gShoFsPKACblO7680jsxUcXBMY31Uu_HLbtg-YpL-i6s59GIiRsABnTnuJIYLBsTO5vZMgMml4FUYwjva2M3hM4thMHoVL6XIkpKqdkacIIloog67VQKfP4nBJLnet0M9-kH-i8BuLPH6S8YpUY8FdZTZpw6O82h_pSosjuQdL8QXQi-FSqNU_1ZOEBkGw",
-    date: "Dec 6, 2023",
-    stars: 5,
-    text: "I recently ordered the Plushie Aya Bunny for my niece's birthday and I must say the quality is exceptional. The \"creamy white\" fur is incredibly soft to the touch and hasn't shed at all after weeks of use. It's exactly as described and the order arrived two days earlier than expected!",
-    helpful: 12,
-  },
-  {
-    id: "p2",
-    author: "Marcus Weber",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBt4FkELV5iIJaAHRtcVmzAL8C4HdtflefRefJNL6qsehOpdiblFSTbO4_yqQilGDpZThaXdVrTPH9C0HRo9Nbptj4zaVOIP35r5r6LI1cGx3Tg_ZmJ6Oo0U_HKS71BzlacpFrW7ZzlosyEXXDOUlei0zZ2EVO_laobV6e2J9x5sKBzL2gjhr41ZfIUnAgaJIA7_pQ3d8MzVxcsAIB27yZ5Xk5WXAVc85w9XxCfJxk1Nxdnotzl-Q5fbQyW1i3lq5R29LuuHm3wPTw",
-    date: "Nov 22, 2023",
-    stars: 4,
-    text: "Very cute plushie. Only reason for 4 stars is that it's a bit smaller than I anticipated from the photos, but it's still adorable and very well-made. Great gift option for the holidays.",
-    helpful: 3,
-  },
-];
 
-function usePurchaseHistoryState() {
-  const [list, setList] = useState<PHReview[]>(INITIAL_PH);
+type ProductReview = {
+  _id?: string;
+  author: string;
+  avatar?: string;
+  stars: number;
+  text: string;
+  createdAt?: string;
+  images?: Array<{ url: string; uploadedAt: string }>;
+};
+
+function usePurchaseHistoryFormState() {
   const [subTab, setSubTab] = useState<"reviews" | "specs" | "qna">("reviews");
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
   const [title, setTitle] = useState("");
   const [feedback, setFeedback] = useState("");
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!rating || !feedback.trim()) return;
-    setList((prev) => [
-      {
-        id: crypto.randomUUID(),
-        author: title.trim() || "You",
-        avatar:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuCBllBwZ7-BVscESBM4BwRNfLvqDRS6RDSf09lqTI4K_7pb27ja0Lo5VBg3Oghf5sPBRE-XjuQM4lmXb0yRGUc-ImxFJpX4rRkXz3wsP4w2tTX0fND7Kx7VU5x5fn7goBVfj-G8T4kl85Gsu-SGdgjQX0wtzentXMcB8B-qc_wSJcX5wVRNPYrynFH9c0sN0DXJ24j2_551nPg2P2klA3U3Xu9C3uC8g7TFouMQtXFL6Gft4MLgRRW7H-wytTKePuc4CzELHYVOKAg",
-        date: new Date().toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-        stars: rating,
-        text: feedback.trim(),
-        helpful: 0,
-      },
-      ...prev,
-    ]);
+  const resetForm = () => {
     setRating(0);
     setHover(0);
     setTitle("");
@@ -1199,7 +1226,6 @@ function usePurchaseHistoryState() {
   };
 
   return {
-    list,
     subTab,
     setSubTab,
     rating,
@@ -1210,14 +1236,24 @@ function usePurchaseHistoryState() {
     setTitle,
     feedback,
     setFeedback,
-    submit,
+    resetForm,
   };
 }
 
-type PHState = ReturnType<typeof usePurchaseHistoryState>;
+type PHState = ReturnType<typeof usePurchaseHistoryFormState>;
 
-function PurchaseHistoryMain({ state }: { state: PHState }) {
-  const { list, subTab, setSubTab } = state;
+function PurchaseHistoryMain({
+  state,
+  reviews,
+  reviewCount,
+  onWriteReview,
+}: {
+  state: PHState;
+  reviews: ProductReview[];
+  reviewCount: number;
+  onWriteReview: () => void;
+}) {
+  const { subTab, setSubTab } = state;
   return (
     <div>
       <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
@@ -1252,7 +1288,7 @@ function PurchaseHistoryMain({ state }: { state: PHState }) {
                   Purchased
                 </span>
                 <h3 className="text-2xl font-bold" style={{ color: BRAND }}>
-                  Plushie Aya Bunny
+                  {PRODUCT_ITEM}
                 </h3>
               </div>
               <div className="text-right">
@@ -1271,7 +1307,7 @@ function PurchaseHistoryMain({ state }: { state: PHState }) {
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-gray-500">Order ID</p>
-                <p className="text-sm font-semibold">#SaaS-88219</p>
+                <p className="text-sm font-semibold">{PRODUCT_ORDER}</p>
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-gray-500">Status</p>
@@ -1289,6 +1325,8 @@ function PurchaseHistoryMain({ state }: { state: PHState }) {
             </div>
             <div className="flex gap-3">
               <button
+                type="button"
+                onClick={onWriteReview}
                 className="text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90"
                 style={{ backgroundColor: BRAND }}
               >
@@ -1313,7 +1351,7 @@ function PurchaseHistoryMain({ state }: { state: PHState }) {
       <nav className="flex gap-8 border-b border-gray-200 mb-6">
         {(
           [
-            ["reviews", `Customer Reviews (${1543 + list.length - 2})`],
+            ["reviews", `Customer Reviews (${reviewCount})`],
             ["specs", "Specifications"],
             ["qna", "Support Q&A"],
           ] as const
@@ -1360,71 +1398,74 @@ function PurchaseHistoryMain({ state }: { state: PHState }) {
           </div>
 
           <div className="space-y-4">
-            {list.map((r) => (
-              <article key={r.id} className="bg-white p-5 rounded-xl border border-gray-200">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={r.avatar}
-                      alt={r.author}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                    <div>
-                      <h4 className="text-sm font-bold">{r.author}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="flex" style={{ color: BRAND }}>
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} className="w-3.5 h-3.5" filled={i < r.stars} />
-                          ))}
+            {reviews.length === 0 ? (
+              <div className="bg-white p-8 rounded-xl border border-gray-200 text-center">
+                <p className="text-sm text-gray-500 mb-4">No reviews for this product yet.</p>
+                <button
+                  type="button"
+                  onClick={onWriteReview}
+                  className="text-sm font-bold hover:underline"
+                  style={{ color: BRAND }}
+                >
+                  Be the first to write a review
+                </button>
+              </div>
+            ) : (
+              reviews.map((r) => (
+                <article
+                  key={r._id}
+                  className="bg-white p-5 rounded-xl border border-gray-200"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={r.avatar || USER_AVATAR}
+                        alt={r.author}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                      <div>
+                        <h4 className="text-sm font-bold">{r.author}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex" style={{ color: BRAND }}>
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star key={i} className="w-3.5 h-3.5" filled={i < r.stars} />
+                            ))}
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {formatReviewDate(r.createdAt)}
+                          </span>
                         </div>
-                        <span className="text-xs text-gray-500">{r.date}</span>
                       </div>
                     </div>
+                    <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded">
+                      Verified Purchase
+                    </span>
                   </div>
-                  <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded">
-                    Verified Purchase
-                  </span>
-                </div>
-                <p className="text-sm text-gray-800 leading-relaxed mb-3">{r.text}</p>
-                <div className="flex gap-5 text-xs font-bold text-gray-500">
-                  <button
-                    className="flex items-center gap-1.5 hover:text-[color:var(--brand)]"
-                    style={{ ["--brand" as never]: BRAND }}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"
-                      />
-                    </svg>
-                    Helpful ({r.helpful})
-                  </button>
-                  <button
-                    className="flex items-center gap-1.5 hover:text-[color:var(--brand)]"
-                    style={{ ["--brand" as never]: BRAND }}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 21l1.8-4.5A8.36 8.36 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                      />
-                    </svg>
-                    Reply
-                  </button>
-                </div>
-              </article>
-            ))}
+                  <p className="text-sm text-gray-800 leading-relaxed mb-3">{r.text}</p>
+                  {r.images && r.images.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {r.images.map((image, idx) => (
+                        <img
+                          key={idx}
+                          src={image.url}
+                          alt={`Review image ${idx + 1}`}
+                          className="h-20 w-20 object-cover rounded-md border border-gray-200"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))
+            )}
           </div>
 
-          <div className="mt-6 text-center">
-            <button className="text-sm font-bold hover:underline" style={{ color: BRAND }}>
-              View All 1,543 Reviews
-            </button>
-          </div>
+          {reviewCount > 0 && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-500">
+                Showing {reviewCount} {reviewCount === 1 ? "review" : "reviews"} for {PRODUCT_ITEM}
+              </p>
+            </div>
+          )}
         </>
       )}
 
@@ -1442,16 +1483,26 @@ function PurchaseHistoryMain({ state }: { state: PHState }) {
   );
 }
 
-function PurchaseHistorySidebar({ state }: { state: PHState }) {
-  const { rating, setRating, hover, setHover, title, setTitle, feedback, setFeedback, submit } =
-    state;
-  const bars = [
-    { label: "5 Stars", pct: 75 },
-    { label: "4 Stars", pct: 15 },
-    { label: "3 Stars", pct: 5 },
-    { label: "2 Stars", pct: 3 },
-    { label: "1 Star", pct: 2 },
-  ];
+function PurchaseHistorySidebar({
+  state,
+  reviewCount,
+  averageRating,
+  ratingRows,
+  onSubmit,
+  isSubmitting,
+  formRef,
+}: {
+  state: PHState;
+  reviewCount: number;
+  averageRating: string;
+  ratingRows: ReturnType<typeof buildRatingRows>;
+  onSubmit: (e: FormEvent) => void;
+  isSubmitting: boolean;
+  formRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const { rating, setRating, hover, setHover, title, setTitle, feedback, setFeedback } = state;
+  const filledStars = Math.round(Number(averageRating));
+
   return (
     <>
       <div className="p-6 border-b border-gray-100">
@@ -1460,19 +1511,20 @@ function PurchaseHistorySidebar({ state }: { state: PHState }) {
         </h4>
         <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
           <div className="flex items-baseline gap-2 mb-4">
-            <span className="text-4xl font-bold">4.5</span>
+            <span className="text-4xl font-bold">{averageRating}</span>
             <div className="flex flex-col">
               <div className="flex" style={{ color: BRAND }}>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Star key={i} className="w-4 h-4" filled />
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className="w-4 h-4" filled={i < filledStars} />
                 ))}
-                <Star className="w-4 h-4" filled={false} />
               </div>
-              <span className="text-xs text-gray-500">Based on 1,543 reviews</span>
+              <span className="text-xs text-gray-500">
+                Based on {reviewCount} {reviewCount === 1 ? "review" : "reviews"}
+              </span>
             </div>
           </div>
           <div className="space-y-2">
-            {bars.map((b) => (
+            {ratingRows.map((b) => (
               <div key={b.label} className="flex items-center gap-3">
                 <span className="w-14 text-xs font-bold">{b.label}</span>
                 <div className="flex-1 h-2 bg-white rounded-full overflow-hidden border border-gray-100">
@@ -1481,16 +1533,16 @@ function PurchaseHistorySidebar({ state }: { state: PHState }) {
                     style={{ width: `${b.pct}%`, backgroundColor: BRAND }}
                   />
                 </div>
-                <span className="w-8 text-right text-xs text-gray-500">{b.pct}%</span>
+                <span className="w-8 text-right text-xs text-gray-500">{b.count}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="p-6 border-b border-gray-100">
+      <div ref={formRef} className="p-6 border-b border-gray-100">
         <h4 className="text-sm font-bold text-gray-900 mb-4">Write a Review</h4>
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label className="text-[11px] uppercase tracking-wide text-gray-500 block mb-2">
               Select Rating
@@ -1538,9 +1590,9 @@ function PurchaseHistorySidebar({ state }: { state: PHState }) {
             type="submit"
             className="w-full text-white py-3 rounded-lg text-sm font-bold hover:brightness-110 disabled:opacity-50"
             style={{ backgroundColor: BRAND }}
-            disabled={!rating || !feedback.trim()}
+            disabled={!rating || !feedback.trim() || isSubmitting}
           >
-            Submit Review
+            {isSubmitting ? "Submitting..." : "Submit Review"}
           </button>
         </form>
       </div>

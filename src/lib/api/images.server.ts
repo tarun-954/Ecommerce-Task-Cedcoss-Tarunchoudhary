@@ -1,31 +1,52 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { getDatabase } from "@/lib/db/mongo";
 import { ObjectId } from "mongodb";
+import { getDatabase } from "@/lib/db/mongo";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
-export const uploadReviewImageServerFn = createServerFn({ method: "POST" })
+type ReviewImage = {
+  url: string;
+  uploadedAt: Date;
+};
+
+export const uploadReviewImageServerFn = createServerFn({
+  method: "POST",
+})
   .inputValidator(z.string())
   .handler(async ({ data: imageData }) => {
     try {
-      // Validate image size and format
       if (!imageData.startsWith("data:image/")) {
-        return { success: false, error: "Invalid image format" };
+        return {
+          success: false,
+          error: "Invalid image format",
+        };
       }
 
-      const binaryString = atob(imageData.split(",")[1]);
+      const parts = imageData.split(",");
+
+      if (parts.length !== 2) {
+        return {
+          success: false,
+          error: "Invalid image data",
+        };
+      }
+
+      const binaryString = atob(parts[1]);
+
       const bytes = new Uint8Array(binaryString.length);
+
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
 
       if (bytes.length > MAX_IMAGE_SIZE) {
-        return { success: false, error: "Image size exceeds 5MB limit" };
+        return {
+          success: false,
+          error: "Image size exceeds 5MB limit",
+        };
       }
 
-      // For now, we'll store the base64 directly in MongoDB
-      // In production, consider using a cloud storage service
       return {
         success: true,
         data: {
@@ -35,11 +56,17 @@ export const uploadReviewImageServerFn = createServerFn({ method: "POST" })
       };
     } catch (error) {
       console.error("Error uploading image:", error);
-      return { success: false, error: "Failed to upload image" };
+
+      return {
+        success: false,
+        error: "Failed to upload image",
+      };
     }
   });
 
-export const addImageToReviewServerFn = createServerFn({ method: "POST" })
+export const addImageToReviewServerFn = createServerFn({
+  method: "POST",
+})
   .inputValidator(
     z.object({
       id: z.string(),
@@ -48,43 +75,57 @@ export const addImageToReviewServerFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data: { id, imageUrl } }) => {
     try {
-      const db = await getDatabase();
-      const objectId = new ObjectId(id);
+      if (!ObjectId.isValid(id)) {
+        return {
+          success: false,
+          error: "Invalid review id",
+        };
+      }
 
-      const result = await db.collection("reviews").findOneAndUpdate(
-        { _id: objectId },
+      const db = await getDatabase();
+
+      const image: ReviewImage = {
+        url: imageUrl,
+        uploadedAt: new Date(),
+      };
+
+      const result = await db.collection("reviews").updateOne(
+        {
+          _id: new ObjectId(id),
+        },
         {
           $push: {
-            images: {
-              url: imageUrl,
-              uploadedAt: new Date(),
-            },
-          },
+            images: image,
+          } as any,
           $set: {
             updatedAt: new Date(),
           },
         },
-        { returnDocument: "after" },
       );
 
-      if (!result) {
-        return { success: false, error: "Review not found" };
+      if (result.matchedCount === 0) {
+        return {
+          success: false,
+          error: "Review not found",
+        };
       }
 
       return {
         success: true,
-        data: {
-          ...result,
-          _id: result._id.toString(),
-        },
       };
     } catch (error) {
       console.error("Error adding image to review:", error);
-      return { success: false, error: "Failed to add image" };
+
+      return {
+        success: false,
+        error: "Failed to add image",
+      };
     }
   });
 
-export const removeImageFromReviewServerFn = createServerFn({ method: "POST" })
+export const removeImageFromReviewServerFn = createServerFn({
+  method: "POST",
+})
   .inputValidator(
     z.object({
       id: z.string(),
@@ -93,35 +134,87 @@ export const removeImageFromReviewServerFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data: { id, imageUrl } }) => {
     try {
-      const db = await getDatabase();
-      const objectId = new ObjectId(id);
+      if (!ObjectId.isValid(id)) {
+        return {
+          success: false,
+          error: "Invalid review id",
+        };
+      }
 
-      const result = await db.collection("reviews").findOneAndUpdate(
-        { _id: objectId },
+      const db = await getDatabase();
+
+      const result = await db.collection("reviews").updateOne(
+        {
+          _id: new ObjectId(id),
+        },
         {
           $pull: {
-            images: { url: imageUrl },
-          },
+            images: {
+              url: imageUrl,
+            },
+          } as any,
           $set: {
             updatedAt: new Date(),
           },
         },
-        { returnDocument: "after" },
       );
 
-      if (!result) {
-        return { success: false, error: "Review not found" };
+      if (result.matchedCount === 0) {
+        return {
+          success: false,
+          error: "Review not found",
+        };
       }
 
       return {
         success: true,
-        data: {
-          ...result,
-          _id: result._id.toString(),
-        },
       };
     } catch (error) {
       console.error("Error removing image from review:", error);
-      return { success: false, error: "Failed to remove image" };
+
+      return {
+        success: false,
+        error: "Failed to remove image",
+      };
+    }
+  });
+
+export const getReviewImagesServerFn = createServerFn({
+  method: "POST",
+})
+  .inputValidator(z.string())
+  .handler(async ({ data: reviewId }) => {
+    try {
+      if (!ObjectId.isValid(reviewId)) {
+        return {
+          success: false,
+          error: "Invalid review id",
+        };
+      }
+
+      const db = await getDatabase();
+
+      const review = await db.collection("reviews").findOne({
+        _id: new ObjectId(reviewId),
+      });
+
+      if (!review) {
+        return {
+          success: false,
+          error: "Review not found",
+        };
+      }
+
+      return {
+        success: true,
+        data: review.images || [],
+      };
+    } catch (error) {
+      console.error("Error fetching images:", error);
+
+      return {
+        success: false,
+        error: "Failed to fetch images",
+      };
     }
   });

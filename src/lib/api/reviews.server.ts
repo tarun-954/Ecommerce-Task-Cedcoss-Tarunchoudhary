@@ -4,6 +4,8 @@ import { z } from "zod";
 import { getDatabase } from "@/lib/db/mongo";
 import { ReviewSchema, type ReviewDocument } from "@/lib/db/schemas";
 
+const imageUrlSchema = z.union([z.string().url(), z.string().startsWith("data:image/")]);
+
 function serializeReview(doc: ReviewDocument) {
   return {
     ...doc,
@@ -50,11 +52,11 @@ export const createReviewServerFn = createServerFn({ method: "POST" })
       author: z.string().min(1).max(60),
       stars: z.number().int().min(1).max(5),
       published: z.boolean().default(true),
-      avatar: z.string().url().optional(),
+      avatar: imageUrlSchema.optional(),
       images: z
         .array(
           z.object({
-            url: z.string(),
+            url: imageUrlSchema,
             uploadedAt: z.string(),
           }),
         )
@@ -112,7 +114,7 @@ export const updateReviewServerFn = createServerFn({ method: "POST" })
         images: z
           .array(
             z.object({
-              url: z.string(),
+              url: imageUrlSchema,
               uploadedAt: z.string(),
             }),
           )

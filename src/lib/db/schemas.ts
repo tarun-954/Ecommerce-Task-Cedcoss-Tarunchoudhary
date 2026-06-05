@@ -1,9 +1,11 @@
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 
+const imageUrlSchema = z.union([z.string().url(), z.string().startsWith("data:image/")]);
+
 // Zod schema for validation
 export const ReviewImageSchema = z.object({
-  url: z.string().url(),
+  url: imageUrlSchema,
   uploadedAt: z.date().default(() => new Date()),
 });
 
@@ -15,7 +17,7 @@ export const ReviewSchema = z.object({
   author: z.string().min(1).max(60),
   stars: z.number().int().min(1).max(5),
   published: z.boolean().default(true),
-  avatar: z.string().url().optional(),
+  avatar: imageUrlSchema.optional(),
   images: z.array(ReviewImageSchema).default([]),
   createdAt: z.date().default(() => new Date()),
   updatedAt: z.date().default(() => new Date()),
