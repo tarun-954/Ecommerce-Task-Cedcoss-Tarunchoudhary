@@ -1,12 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getReviewsServerFn, createReviewServerFn } from "@/lib/api/reviews.server";
+import {
+  createReviewServerFn,
+  deleteReviewServerFn,
+  getReviewsServerFn,
+  updateReviewServerFn,
+} from "@/lib/api/reviews.server";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Customer Detail Dashboard - Brooklyn Simmons" },
+      { title: "Customer Detail Dashboard - Tarun Choudhary" },
       {
         name: "description",
         content: "Customer detail dashboard with reviews, ratings and AI analysis.",
@@ -25,7 +30,7 @@ export const Route = createFileRoute("/")({
 });
 
 const BRAND = "#ff6b00";
-const BROOKLYN_AVATAR = new URL("../assets/user.jpeg", import.meta.url).href;
+const USER_AVATAR = new URL("../assets/user.jpeg", import.meta.url).href;
 
 function Star({ className = "w-5 h-5", filled = true }: { className?: string; filled?: boolean }) {
   return (
@@ -107,72 +112,56 @@ function CustomerDetailPage() {
   const [hoverStar, setHoverStar] = useState(0);
   const [activeTab, setActiveTab] = useState<string>("Review");
   const phState = usePurchaseHistoryState();
-  const [debugEvents, setDebugEvents] = useState<
-    Array<{ id: string; time: string; label: string; detail: string }>
-  >([]);
-
-  const addDebugEvent = (label: string, payload?: unknown) => {
-    const detail =
-      payload == null
-        ? ""
-        : typeof payload === "string"
-          ? payload
-          : JSON.stringify(payload, null, 2);
-
-    console.log(`[reviews-ui] ${label}`, payload ?? "");
-    setDebugEvents((events) =>
-      [
-        {
-          id: crypto.randomUUID(),
-          time: new Date().toLocaleTimeString(),
-          label,
-          detail,
-        },
-        ...events,
-      ].slice(0, 8),
-    );
-  };
 
   // Fetch reviews from backend
   const { data: reviewsData, refetch: refetchReviews } = useQuery({
     queryKey: ["reviews", customerId],
     queryFn: async () => {
-      addDebugEvent("fetch:start", { customerId });
       const result = await getReviewsServerFn({ data: customerId });
-      addDebugEvent(result.success ? "fetch:success" : "fetch:error", result);
       return result.success ? result.data : [];
     },
     initialData: [],
   });
 
   const reviews = Array.isArray(reviewsData) ? reviewsData : [];
+  const reviewCount = reviews.length;
+  const averageRating =
+    reviewCount === 0
+      ? "0.0"
+      : (reviews.reduce((sum, review) => sum + review.stars, 0) / reviewCount).toFixed(1);
+  const ratingRows = [5, 4, 3, 2, 1].map((stars) => {
+    const count = reviews.filter((review) => review.stars === stars).length;
+    return {
+      label:
+        stars === 5
+          ? "5 - Excellent"
+          : stars === 4
+            ? "4 - Good"
+            : stars === 3
+              ? "3 - Okay"
+              : `${stars} - Poor`,
+      pct: reviewCount === 0 ? 0 : Math.round((count / reviewCount) * 100),
+      count,
+      stars,
+    };
+  });
 
   // Create review mutation
   const createReviewMutation = useMutation({
     mutationFn: async (newReview: Omit<Review, "_id" | "customerId">) => {
-      addDebugEvent("create:start", {
-        customerId,
-        item: newReview.item,
-        imageCount: newReview.images?.length ?? 0,
-      });
       const result = await createReviewServerFn({
         data: {
           ...newReview,
           customerId,
         },
       });
-      addDebugEvent(result.success ? "create:success" : "create:error", result);
       if (!result.success) {
         throw new Error(result.error);
       }
       return result;
     },
     onSuccess: async () => {
-      const refetchResult = await refetchReviews();
-      addDebugEvent("fetch:after-create", {
-        status: refetchResult.status,
-        count: Array.isArray(refetchResult.data) ? refetchResult.data.length : 0,
-      });
+      await refetchReviews();
       setDraft({
         order: "",
         item: "",
@@ -185,8 +174,36 @@ function CustomerDetailPage() {
       });
       setShowForm(false);
     },
-    onError: (error) => {
-      addDebugEvent("create:client-error", error instanceof Error ? error.message : error);
+  });
+
+  const deleteReviewMutation = useMutation({
+    mutationFn: async (reviewId: string) => {
+      const result = await deleteReviewServerFn({ data: reviewId });
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    onSuccess: async () => {
+      await refetchReviews();
+    },
+  });
+
+  const updatePublishedMutation = useMutation({
+    mutationFn: async ({ reviewId, published }: { reviewId: string; published: boolean }) => {
+      const result = await updateReviewServerFn({
+        data: {
+          id: reviewId,
+          review: { published },
+        },
+      });
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    onSuccess: async () => {
+      await refetchReviews();
     },
   });
 
@@ -225,7 +242,6 @@ function CustomerDetailPage() {
     const text = draft.text.trim();
     const author = draft.author.trim() || "Anonymous";
     if (!item || !text) {
-      addDebugEvent("submit:blocked", "Item and review text are required.");
       return;
     }
 
@@ -422,9 +438,9 @@ function CustomerDetailPage() {
                     </svg>
                   </button>
                   <img
-                    alt="Brooklyn Simmons"
+                    alt="Tarun Choudhary"
                     className="w-20 h-20 rounded-full object-cover"
-                    src={BROOKLYN_AVATAR}
+                    src={USER_AVATAR}
                   />
                   <div>
                     <h1 className="text-3xl font-bold text-gray-900">Tarun Choudhary</h1>
@@ -748,13 +764,13 @@ function CustomerDetailPage() {
 
                         {/* Preview uploaded images */}
                         {draft.images.length > 0 && (
-                          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="mt-4 flex flex-wrap gap-2">
                             {draft.images.map((image, idx) => (
                               <div key={idx} className="relative group">
                                 <img
                                   src={image}
                                   alt={`Preview ${idx + 1}`}
-                                  className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                                  className="h-16 w-16 object-cover rounded-md border border-gray-200"
                                 />
                                 <button
                                   type="button"
@@ -804,21 +820,19 @@ function CustomerDetailPage() {
                     <div className="flex-none">
                       <span className="text-sm text-gray-500 font-medium">Rating</span>
                       <div className="flex items-baseline space-x-2 mt-2">
-                        <span className="text-5xl font-bold text-gray-900">4.8</span>
+                        <span className="text-5xl font-bold text-gray-900">{averageRating}</span>
                         <div className="flex items-center">
                           {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} />
+                            <Star key={i} filled={i < Math.round(Number(averageRating))} />
                           ))}
                         </div>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">92 reviews</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {reviewCount} {reviewCount === 1 ? "review" : "reviews"}
+                      </p>
                     </div>
                     <div className="flex-1 space-y-2 max-w-sm">
-                      {[
-                        { label: "5 - Excellent", pct: 80, count: "2,200" },
-                        { label: "4 - Good", pct: 20, count: "550" },
-                        { label: "3 - Okay", pct: 20, count: "550" },
-                      ].map((r) => (
+                      {ratingRows.map((r) => (
                         <div key={r.label} className="flex items-center text-xs">
                           <span className="w-20 text-gray-500">{r.label}</span>
                           <div className="flex-1 mx-3 relative h-1.5 rounded-full bg-gray-200">
@@ -833,50 +847,32 @@ function CustomerDetailPage() {
                     </div>
                   </div>
 
-                  <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <h3 className="text-xs font-bold uppercase tracking-wide text-gray-600">
-                        Debug
-                      </h3>
-                      <span className="text-xs font-semibold text-gray-500">
-                        {reviews.length} reviews loaded
-                      </span>
-                    </div>
-                    {debugEvents.length === 0 ? (
-                      <p className="text-xs text-gray-500">Waiting for fetch activity...</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {debugEvents.map((event) => (
-                          <details
-                            key={event.id}
-                            className="rounded-md border border-gray-200 bg-white px-3 py-2"
-                          >
-                            <summary className="cursor-pointer text-xs font-semibold text-gray-800">
-                              {event.time} - {event.label}
-                            </summary>
-                            {event.detail && (
-                              <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-gray-600">
-                                {event.detail}
-                              </pre>
-                            )}
-                          </details>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
                   {/* Review items */}
                   {reviews.map((r) => (
                     <ReviewItem
-                      key={r._id || r.id}
+                      key={r._id}
                       order={r.order}
                       stars={r.stars}
                       published={r.published}
                       item={r.item}
                       text={r.text}
                       author={r.author}
-                      avatar={r.avatar}
+                      avatar={r.avatar || FALLBACK_AVATAR}
                       images={r.images}
+                      onTogglePublished={
+                        r._id
+                          ? () =>
+                              updatePublishedMutation.mutate({
+                                reviewId: r._id as string,
+                                published: !r.published,
+                              })
+                          : undefined
+                      }
+                      onDelete={
+                        r._id ? () => deleteReviewMutation.mutate(r._id as string) : undefined
+                      }
+                      isUpdating={updatePublishedMutation.isPending}
+                      isDeleting={deleteReviewMutation.isPending}
                     />
                   ))}
                 </>
@@ -1010,6 +1006,10 @@ function ReviewItem({
   author,
   avatar,
   images = [],
+  onTogglePublished,
+  onDelete,
+  isUpdating = false,
+  isDeleting = false,
 }: {
   order: string;
   stars: number;
@@ -1019,9 +1019,13 @@ function ReviewItem({
   author: string;
   avatar: string;
   images?: Array<{ url: string; uploadedAt: string }>;
+  onTogglePublished?: () => void;
+  onDelete?: () => void;
+  isUpdating?: boolean;
+  isDeleting?: boolean;
 }) {
   return (
-    <div className="border-t border-gray-100 pt-8 pb-12">
+    <article className="mb-4 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <img
@@ -1044,25 +1048,56 @@ function ReviewItem({
             </div>
           </div>
         </div>
-        {published ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700">
-            <svg className="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-            </svg>
-            Published
-          </span>
-        ) : (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500">
-            <svg className="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M13.477 3.03a.75.75 0 01.437.695v8.68a.75.75 0 01-1.076.676l-1.872-.936a.75.75 0 00-.67 0l-1.872.936a.75.75 0 01-1.076-.676V3.725a.75.75 0 01.437-.695 38.014 38.014 0 017.692 0zM10 10.75a.75.75 0 100-1.5.75.75 0 000 1.5z"
-              />
-            </svg>
-            Unpublished
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {published ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700">
+              <svg className="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+              </svg>
+              Published
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500">
+              <svg className="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M13.477 3.03a.75.75 0 01.437.695v8.68a.75.75 0 01-1.076.676l-1.872-.936a.75.75 0 00-.67 0l-1.872.936a.75.75 0 01-1.076-.676V3.725a.75.75 0 01.437-.695 38.014 38.014 0 017.692 0zM10 10.75a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                />
+              </svg>
+              Unpublished
+            </span>
+          )}
+          {onTogglePublished && (
+            <button
+              type="button"
+              onClick={onTogglePublished}
+              disabled={isUpdating}
+              className="inline-flex h-7 items-center rounded-md border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {published ? "Unpublish" : "Publish"}
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={isDeleting}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-100 text-red-500 hover:bg-red-50 disabled:opacity-50"
+              title="Delete review"
+              aria-label="Delete review"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 7h12M10 11v6m4-6v6M9 7l1-2h4l1 2m-8 0 1 14h8l1-14"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
       <div className="mb-3">
         <span className="text-sm mr-2 font-bold" style={{ color: BRAND }}>
@@ -1077,20 +1112,20 @@ function ReviewItem({
 
       {/* Display review images */}
       {images && images.length > 0 && (
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="mt-4 flex flex-wrap gap-2">
           {images.map((image, idx) => (
             <div key={idx} className="relative group">
               <img
                 src={image.url}
                 alt={`Review image ${idx + 1}`}
-                className="w-full h-32 object-cover rounded-lg border border-gray-200 hover:border-gray-400 transition"
+                className="h-20 w-20 object-cover rounded-md border border-gray-200 hover:border-gray-400 transition"
               />
               <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 rounded-lg transition" />
             </div>
           ))}
         </div>
       )}
-    </div>
+    </article>
   );
 }
 

@@ -122,10 +122,11 @@ export const updateReviewServerFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data: { id, review } }) => {
     try {
+      console.log("[reviews] update:start", { id, fields: Object.keys(review) });
       const db = await getDatabase();
       const objectId = new ObjectId(id);
 
-      const result = await db.collection("reviews").findOneAndUpdate(
+      const result = await db.collection<ReviewDocument>("reviews").findOneAndUpdate(
         { _id: objectId },
         {
           $set: {
@@ -137,15 +138,14 @@ export const updateReviewServerFn = createServerFn({ method: "POST" })
       );
 
       if (!result) {
+        console.log("[reviews] update:not-found", { id });
         return { success: false, error: "Review not found" };
       }
 
+      console.log("[reviews] update:success", { id });
       return {
         success: true,
-        data: {
-          ...result,
-          _id: result._id.toString(),
-        },
+        data: serializeReview(result),
       };
     } catch (error) {
       console.error("Error updating review:", error);
@@ -157,15 +157,18 @@ export const deleteReviewServerFn = createServerFn({ method: "POST" })
   .inputValidator(z.string())
   .handler(async ({ data: id }) => {
     try {
+      console.log("[reviews] delete:start", { id });
       const db = await getDatabase();
       const objectId = new ObjectId(id);
 
       const result = await db.collection("reviews").deleteOne({ _id: objectId });
 
       if (result.deletedCount === 0) {
+        console.log("[reviews] delete:not-found", { id });
         return { success: false, error: "Review not found" };
       }
 
+      console.log("[reviews] delete:success", { id });
       return { success: true };
     } catch (error) {
       console.error("Error deleting review:", error);
