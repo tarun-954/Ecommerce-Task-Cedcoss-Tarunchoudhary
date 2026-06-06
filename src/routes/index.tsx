@@ -1343,7 +1343,7 @@ function CustomerDetailPage() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-gray-500">Last Online</span>
-                      <span className="text-xs font-bold">04 Feb 2024, 13:00</span>
+                      <span className="text-xs font-bold">06 Jun 2026, 13:47</span>
                     </div>
                   </div>
                 </div>
