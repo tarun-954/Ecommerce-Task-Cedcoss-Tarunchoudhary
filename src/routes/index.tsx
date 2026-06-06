@@ -203,6 +203,7 @@ function ChevronDown() {
 
 function CustomerDetailPage() {
   type ReviewImage = { url: string; uploadedAt: string };
+  
   type Review = {
     _id?: string;
     id?: string;
@@ -547,7 +548,7 @@ function CustomerDetailPage() {
                 </span>
                 <input
                   className="block w-full pl-10 pr-3 py-2 border-0 bg-gray-50 rounded-lg text-sm focus:bg-white outline-none"
-                  placeholder="Search or Press '/' for commands"
+                  placeholder="Search products"
                   type="text"
                 />
               </div>
