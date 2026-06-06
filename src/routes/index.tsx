@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createReviewServerFn,
@@ -201,6 +201,39 @@ function ChevronDown() {
   );
 }
 
+type DurationFilter = "all" | "7d" | "30d" | "90d" | "1y";
+
+const DURATION_OPTIONS: { value: DurationFilter; label: string }[] = [
+  { value: "all", label: "All time" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "90d", label: "Last 90 days" },
+  { value: "1y", label: "Last year" },
+];
+
+function matchesTextQuery(fields: (string | undefined)[], query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return fields.some((field) => field?.toLowerCase().includes(q));
+}
+
+function isWithinDuration(createdAt: string | undefined, duration: DurationFilter) {
+  if (duration === "all") return true;
+  if (!createdAt) return false;
+  const days = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 }[duration];
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return new Date(createdAt).getTime() >= cutoff;
+}
+
+function filterPurchaseOrders(orders: PurchaseOrder[], query: string) {
+  return orders.filter((order) =>
+    matchesTextQuery(
+      [order.item, order.orderId, order.color, order.status, order.orderDate, order.price],
+      query,
+    ),
+  );
+}
+
 function CustomerDetailPage() {
   type ReviewImage = { url: string; uploadedAt: string };
   
@@ -234,7 +267,13 @@ function CustomerDetailPage() {
     images: [] as string[],
   });
   const [hoverStar, setHoverStar] = useState(0);
-  const [activeTab, setActiveTab] = useState<string>("Review");
+  const [activeTab, setActiveTab] = useState<string>("Purchase History");
+  const [productSearch, setProductSearch] = useState("");
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [durationFilter, setDurationFilter] = useState<DurationFilter>("all");
+  const [durationOpen, setDurationOpen] = useState(false);
+  const [reviewSubmitError, setReviewSubmitError] = useState<string | null>(null);
+  const durationRef = useRef<HTMLDivElement>(null);
   const phState = usePurchaseHistoryFormState();
   const productReviewFormRef = useRef<HTMLDivElement>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -253,22 +292,21 @@ function CustomerDetailPage() {
   });
 
   const reviews = Array.isArray(reviewsData) ? reviewsData : [];
-  const productReviews = reviews.filter((review) => review.item === activeProductItem);
-  const productReviewCount = productReviews.length;
-  const productAverageRating =
-    productReviewCount === 0
+  const filteredPurchaseOrders = filterPurchaseOrders(PURCHASE_ORDERS, productSearch);
+  const filteredReviews = reviews.filter(
+    (review) =>
+      matchesTextQuery([review.author, review.text, review.item, review.order], reviewSearch) &&
+      isWithinDuration(review.createdAt, durationFilter),
+  );
+  const filteredReviewCount = filteredReviews.length;
+  const filteredAverageRating =
+    filteredReviewCount === 0
       ? "0.0"
       : (
-          productReviews.reduce((sum, review) => sum + review.stars, 0) / productReviewCount
+          filteredReviews.reduce((sum, review) => sum + review.stars, 0) / filteredReviewCount
         ).toFixed(1);
-  const productRatingRows = buildRatingRows(productReviews);
-  const reviewCount = reviews.length;
-  const averageRating =
-    reviewCount === 0
-      ? "0.0"
-      : (reviews.reduce((sum, review) => sum + review.stars, 0) / reviewCount).toFixed(1);
-  const ratingRows = [5, 4, 3, 2, 1].map((stars) => {
-    const count = reviews.filter((review) => review.stars === stars).length;
+  const filteredRatingRows = [5, 4, 3, 2, 1].map((stars) => {
+    const count = filteredReviews.filter((review) => review.stars === stars).length;
     return {
       label:
         stars === 5
@@ -278,11 +316,20 @@ function CustomerDetailPage() {
             : stars === 3
               ? "3 - Okay"
               : `${stars} - Poor`,
-      pct: reviewCount === 0 ? 0 : Math.round((count / reviewCount) * 100),
+      pct: filteredReviewCount === 0 ? 0 : Math.round((count / filteredReviewCount) * 100),
       count,
       stars,
     };
   });
+  const productReviews = reviews.filter((review) => review.item === activeProductItem);
+  const productReviewCount = productReviews.length;
+  const productAverageRating =
+    productReviewCount === 0
+      ? "0.0"
+      : (
+          productReviews.reduce((sum, review) => sum + review.stars, 0) / productReviewCount
+        ).toFixed(1);
+  const productRatingRows = buildRatingRows(productReviews);
 
   // Create review mutation
   const createReviewMutation = useMutation({
@@ -399,30 +446,53 @@ function CustomerDetailPage() {
     });
   };
 
+  useEffect(() => {
+    if (!durationOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (durationRef.current && !durationRef.current.contains(event.target as Node)) {
+        setDurationOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [durationOpen]);
+
   const handleSelectOrderForReview = (orderId: string) => {
     setSelectedOrderId(orderId);
+    setReviewSubmitError(null);
     phState.resetForm();
     productReviewFormRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   const handleProductReviewSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!phState.rating || !phState.feedback.trim()) return;
+    if (!phState.rating || !phState.feedback.trim() || !selectedOrder) return;
 
-    const order = selectedOrder ?? PURCHASE_ORDERS[0];
+    setReviewSubmitError(null);
 
-    await createReviewMutation.mutateAsync({
-      order: order.orderId,
-      item: order.item,
-      text: phState.feedback.trim(),
-      stars: phState.rating,
-      published: true,
-      author: phState.title.trim() || CUSTOMER_NAME,
-      avatar: resolveAvatarUrl(USER_AVATAR),
-      images: [],
-      createdAt: new Date().toISOString(),
-    });
-    phState.resetForm();
+    try {
+      await createReviewMutation.mutateAsync({
+        order: selectedOrder.orderId,
+        item: selectedOrder.item,
+        text: phState.feedback.trim(),
+        stars: phState.rating,
+        published: true,
+        author: phState.title.trim() || CUSTOMER_NAME,
+        avatar: resolveAvatarUrl(USER_AVATAR),
+        images: phState.images.map((url) => ({
+          url,
+          uploadedAt: new Date().toISOString(),
+        })),
+        createdAt: new Date().toISOString(),
+      });
+      phState.resetForm();
+      phState.setSubTab("reviews");
+      setReviewSubmitError(null);
+    } catch (error) {
+      setReviewSubmitError(
+        error instanceof Error ? error.message : "Failed to submit review. Please try again.",
+      );
+    }
   };
 
   return (
@@ -550,6 +620,8 @@ function CustomerDetailPage() {
                   className="block w-full pl-10 pr-3 py-2 border-0 bg-gray-50 rounded-lg text-sm focus:bg-white outline-none"
                   placeholder="Search products"
                   type="text"
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
                 />
               </div>
             </div>
@@ -576,7 +648,7 @@ function CustomerDetailPage() {
                 </svg>
               </button>
               <div className="w-8 h-8 rounded-full bg-blue-900 flex items-center justify-center text-xs text-white font-bold">
-                FIK
+                Tar
               </div>
             </div>
           </header>
@@ -697,11 +769,13 @@ function CustomerDetailPage() {
               {activeTab === "Purchase History" && (
                 <PurchaseHistoryMain
                   state={phState}
+                  orders={filteredPurchaseOrders}
                   reviews={productReviews}
                   reviewCount={productReviewCount}
                   activeProductItem={activeProductItem}
                   selectedOrderId={selectedOrderId}
                   onWriteReview={handleSelectOrderForReview}
+                  hasActiveSearch={productSearch.trim().length > 0}
                 />
               )}
               {activeTab !== "Purchase History" && (
@@ -771,12 +845,47 @@ function CustomerDetailPage() {
                       <input
                         className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white outline-none"
                         placeholder="Search"
+                        value={reviewSearch}
+                        onChange={(e) => setReviewSearch(e.target.value)}
                       />
                     </div>
-                    <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium flex items-center space-x-2 hover:bg-gray-50">
-                      <span>Duration</span>
-                      <ChevronDown />
-                    </button>
+                    <div className="relative" ref={durationRef}>
+                      <button
+                        type="button"
+                        onClick={() => setDurationOpen((open) => !open)}
+                        className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium flex items-center space-x-2 hover:bg-gray-50"
+                      >
+                        <span>
+                          {DURATION_OPTIONS.find((opt) => opt.value === durationFilter)?.label ??
+                            "Duration"}
+                        </span>
+                        <ChevronDown />
+                      </button>
+                      {durationOpen && (
+                        <div className="absolute left-0 top-full z-20 mt-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                          {DURATION_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                setDurationFilter(opt.value);
+                                setDurationOpen(false);
+                              }}
+                              className={`block w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${
+                                durationFilter === opt.value
+                                  ? "font-semibold text-gray-900"
+                                  : "text-gray-600"
+                              }`}
+                              style={
+                                durationFilter === opt.value ? { color: BRAND } : undefined
+                              }
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium flex items-center space-x-2 hover:bg-gray-50">
                       <span>Channels</span>
                       <ChevronDown />
@@ -993,19 +1102,28 @@ function CustomerDetailPage() {
                     <div className="flex-none">
                       <span className="text-sm text-gray-500 font-medium">Rating</span>
                       <div className="flex items-baseline space-x-2 mt-2">
-                        <span className="text-5xl font-bold text-gray-900">{averageRating}</span>
+                        <span className="text-5xl font-bold text-gray-900">
+                          {filteredAverageRating}
+                        </span>
                         <div className="flex items-center">
                           {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} filled={i < Math.round(Number(averageRating))} />
+                            <Star
+                              key={i}
+                              filled={i < Math.round(Number(filteredAverageRating))}
+                            />
                           ))}
                         </div>
                       </div>
                       <p className="text-sm text-gray-500 mt-1">
-                        {reviewCount} {reviewCount === 1 ? "review" : "reviews"}
+                        {filteredReviewCount}{" "}
+                        {filteredReviewCount === 1 ? "review" : "reviews"}
+                        {(reviewSearch.trim() || durationFilter !== "all") && (
+                          <span className="text-gray-400"> (filtered)</span>
+                        )}
                       </p>
                     </div>
                     <div className="flex-1 space-y-2 max-w-sm">
-                      {ratingRows.map((r) => (
+                      {filteredRatingRows.map((r) => (
                         <div key={r.label} className="flex items-center text-xs">
                           <span className="w-20 text-gray-500">{r.label}</span>
                           <div className="flex-1 mx-3 relative h-1.5 rounded-full bg-gray-200">
@@ -1021,7 +1139,14 @@ function CustomerDetailPage() {
                   </div>
 
                   {/* Review items */}
-                  {reviews.map((r) => (
+                  {filteredReviewCount === 0 && (
+                    <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+                      <p className="text-sm text-gray-500">
+                        No reviews match your search or duration filter.
+                      </p>
+                    </div>
+                  )}
+                  {filteredReviews.map((r) => (
                     <ReviewItem
                       key={r._id}
                       order={r.order}
@@ -1062,6 +1187,7 @@ function CustomerDetailPage() {
                   ratingRows={productRatingRows}
                   onSubmit={handleProductReviewSubmit}
                   isSubmitting={createReviewMutation.isPending}
+                  submitError={reviewSubmitError}
                   formRef={productReviewFormRef}
                 />
               </aside>
@@ -1321,18 +1447,46 @@ type ProductReview = {
   images?: Array<{ url: string; uploadedAt: string }>;
 };
 
+const MAX_REVIEW_IMAGE_SIZE = 5 * 1024 * 1024;
+
 function usePurchaseHistoryFormState() {
   const [subTab, setSubTab] = useState<"reviews" | "specs" | "qna">("reviews");
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
   const [title, setTitle] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  const addImage = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setImageError("Only image files are allowed.");
+      return;
+    }
+    if (file.size > MAX_REVIEW_IMAGE_SIZE) {
+      setImageError("Each image must be 5MB or smaller.");
+      return;
+    }
+    setImageError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const imageData = String(reader.result || "");
+      if (imageData) setImages((prev) => [...prev, imageData]);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const resetForm = () => {
     setRating(0);
     setHover(0);
     setTitle("");
     setFeedback("");
+    setImages([]);
+    setImageError(null);
   };
 
   return {
@@ -1346,6 +1500,10 @@ function usePurchaseHistoryFormState() {
     setTitle,
     feedback,
     setFeedback,
+    images,
+    imageError,
+    addImage,
+    removeImage,
     resetForm,
   };
 }
@@ -1545,18 +1703,22 @@ function PurchaseOrderCard({
 }
 function PurchaseHistoryMain({
   state,
+  orders,
   reviews,
   reviewCount,
   activeProductItem,
   selectedOrderId,
   onWriteReview,
+  hasActiveSearch,
 }: {
   state: PHState;
+  orders: PurchaseOrder[];
   reviews: ProductReview[];
   reviewCount: number;
   activeProductItem: string;
   selectedOrderId: string | null;
   onWriteReview: (orderId: string) => void;
+  hasActiveSearch: boolean;
 }) {
   const { subTab, setSubTab } = state;
   return (
@@ -1578,14 +1740,24 @@ function PurchaseHistoryMain({
       </p>
 
       <div className="space-y-6 mb-8">
-        {PURCHASE_ORDERS.map((order) => (
-          <PurchaseOrderCard
-            key={order.id}
-            order={order}
-            isSelected={selectedOrderId === order.id}
-            onWriteReview={() => onWriteReview(order.id)}
-          />
-        ))}
+        {orders.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+            <p className="text-sm text-gray-500">
+              {hasActiveSearch
+                ? "No orders match your search."
+                : "No purchase orders to display."}
+            </p>
+          </div>
+        ) : (
+          orders.map((order) => (
+            <PurchaseOrderCard
+              key={order.id}
+              order={order}
+              isSelected={selectedOrderId === order.id}
+              onWriteReview={() => onWriteReview(order.id)}
+            />
+          ))
+        )}
       </div>
 
       <nav className="flex gap-8 border-b border-gray-200 mb-6">
@@ -1683,19 +1855,21 @@ function PurchaseHistoryMain({
                       Verified Purchase
                     </span>
                   </div>
-                  <p className="text-sm text-gray-800 leading-relaxed mb-3">{r.text}</p>
-                  {r.images && r.images.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {r.images.map((image, idx) => (
-                        <img
-                          key={idx}
-                          src={image.url}
-                          alt={`Review image ${idx + 1}`}
-                          className="h-20 w-20 object-cover rounded-md border border-gray-200"
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex gap-4 items-start">
+                    <p className="text-sm text-gray-800 leading-relaxed flex-1 min-w-0">{r.text}</p>
+                    {r.images && r.images.length > 0 && (
+                      <div className="flex gap-2 flex-shrink-0">
+                        {r.images.map((image, idx) => (
+                          <img
+                            key={idx}
+                            src={image.url}
+                            alt={`Review image ${idx + 1}`}
+                            className="h-20 w-20 object-cover rounded-md border border-gray-200"
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </article>
               ))
             )}
@@ -1734,6 +1908,7 @@ function PurchaseHistorySidebar({
   ratingRows,
   onSubmit,
   isSubmitting,
+  submitError,
   formRef,
 }: {
   state: PHState;
@@ -1743,9 +1918,23 @@ function PurchaseHistorySidebar({
   ratingRows: ReturnType<typeof buildRatingRows>;
   onSubmit: (e: FormEvent) => void;
   isSubmitting: boolean;
+  submitError: string | null;
   formRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const { rating, setRating, hover, setHover, title, setTitle, feedback, setFeedback } = state;
+  const {
+    rating,
+    setRating,
+    hover,
+    setHover,
+    title,
+    setTitle,
+    feedback,
+    setFeedback,
+    images,
+    imageError,
+    addImage,
+    removeImage,
+  } = state;
   const filledStars = Math.round(Number(averageRating));
 
   return (
@@ -1840,6 +2029,68 @@ function PurchaseHistorySidebar({
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white resize-none"
             />
           </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-wide text-gray-500 block mb-2">
+              Add Photos
+            </label>
+            <label className="cursor-pointer block">
+              <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-gray-300 transition">
+                <svg
+                  className="w-6 h-6 text-gray-400 mx-auto mb-1"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <p className="text-xs text-gray-500">Click to upload photos</p>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                multiple
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (!files) return;
+                  Array.from(files).forEach((file) => addImage(file));
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {images.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {images.map((image, idx) => (
+                  <div key={idx} className="relative group">
+                    <img
+                      src={image}
+                      alt={`Upload preview ${idx + 1}`}
+                      className="h-14 w-14 object-cover rounded-md border border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(idx)}
+                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition"
+                      aria-label="Remove image"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {imageError && <p className="mt-2 text-xs text-red-600">{imageError}</p>}
+          </div>
+          {submitError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              {submitError}
+            </p>
+          )}
           <button
             type="submit"
             className="w-full text-white py-3 rounded-lg text-sm font-bold hover:brightness-110 disabled:opacity-50"

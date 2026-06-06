@@ -17,13 +17,14 @@ function normalizeAvatarUrl(avatar?: string) {
 }
 
 function serializeReview(doc: ReviewDocument) {
+  const images = Array.isArray(doc.images) ? doc.images : [];
   return {
     ...doc,
     _id: doc._id.toString(),
     avatar: normalizeAvatarUrl(doc.avatar),
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
     updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : doc.updatedAt,
-    images: doc.images.map((image) => ({
+    images: images.map((image) => ({
       ...image,
       uploadedAt:
         image.uploadedAt instanceof Date ? image.uploadedAt.toISOString() : image.uploadedAt,
@@ -111,7 +112,13 @@ export const createReviewServerFn = createServerFn({ method: "POST" })
       };
     } catch (error) {
       console.error("Error creating review:", error);
-      return { success: false, error: "Failed to create review" };
+      const message =
+        error instanceof Error && error.message.includes("Topology is closed")
+          ? "Database connection lost. Please try again."
+          : error instanceof Error && /document too large|BSONObj size/i.test(error.message)
+            ? "Review images are too large. Try fewer or smaller photos."
+            : "Failed to create review";
+      return { success: false, error: message };
     }
   });
 
