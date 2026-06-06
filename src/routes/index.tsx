@@ -57,6 +57,8 @@ type PurchaseOrder = {
   media:
     | { type: "sketchfab"; title: string; src: string }
     | { type: "image"; src: string; alt: string };
+  specs: { label: string; value: string }[];
+  qna: { question: string; answer: string }[];
 };
 
 const PURCHASE_ORDERS: PurchaseOrder[] = [
@@ -76,6 +78,22 @@ const PURCHASE_ORDERS: PurchaseOrder[] = [
       title: "SoundHub 7G Black Headphones",
       src:
       "https://sketchfab.com/models/87ddc4f9942b41bab65375ec5895e9c2/embed?autostart=1&autospin=1&preload=1&ui_controls=0&ui_infos=0&ui_stop=0&transparent=1",    },
+    specs: [
+      { label: "Driver Size", value: "40mm dynamic" },
+      { label: "Battery Life", value: "Up to 30 hours" },
+      { label: "Connectivity", value: "Bluetooth 5.3, USB-C" },
+      { label: "Weight", value: "250g" },
+    ],
+    qna: [
+      {
+        question: "Is noise cancellation supported?",
+        answer: "Yes, hybrid ANC with ambient mode is included.",
+      },
+      {
+        question: "Can I use these wired?",
+        answer: "Yes, a 3.5mm cable is included in the box.",
+      },
+    ],
   },
   {
     id: "2",
@@ -92,6 +110,22 @@ const PURCHASE_ORDERS: PurchaseOrder[] = [
       title: "SoundHub 7G Black Headphones",
       src:
       "https://sketchfab.com/models/05735b74d3524f00b648231138122a28/embed?autospin=1&autostart=1&preload=1&transparent=1&ui_theme=dark",    },
+    specs: [
+      { label: "Driver Size", value: "50mm neodymium" },
+      { label: "Battery Life", value: "Up to 45 hours" },
+      { label: "Connectivity", value: "Bluetooth 5.4, LDAC" },
+      { label: "Weight", value: "320g" },
+    ],
+    qna: [
+      {
+        question: "Are these good for studio use?",
+        answer: "They offer flat tuning suitable for casual monitoring.",
+      },
+      {
+        question: "Do they fold for travel?",
+        answer: "Yes, they include a fold-flat hinge design.",
+      },
+    ],
   },
  
   {
@@ -112,6 +146,22 @@ const PURCHASE_ORDERS: PurchaseOrder[] = [
   "https://sketchfab.com/models/a65354bb59af4d358701c91b39012d50/embed?autospin=1&autostart=1&preload=1&transparent=1&ui_theme=dark",
       
     },
+    specs: [
+      { label: "Material", value: "Genuine leather ear cushions" },
+      { label: "Battery Life", value: "Up to 28 hours" },
+      { label: "Connectivity", value: "Bluetooth 5.2" },
+      { label: "Weight", value: "265g" },
+    ],
+    qna: [
+      {
+        question: "Is the leather replaceable?",
+        answer: "Yes, replacement ear pads are available from SoundHub.",
+      },
+      {
+        question: "Are they sweat resistant?",
+        answer: "They are suitable for light workouts but not fully waterproof.",
+      },
+    ],
   },
   {
     id: "4",
@@ -131,8 +181,44 @@ const PURCHASE_ORDERS: PurchaseOrder[] = [
   "https://sketchfab.com/models/09e94506c52f416b963eeec023468c82/embed?autospin=1&autostart=1&preload=1&transparent=1&ui_theme=light",
       
     },
+    specs: [
+      { label: "Driver Size", value: "11mm planar" },
+      { label: "Battery Life", value: "Up to 36 hours" },
+      { label: "Connectivity", value: "Bluetooth 5.3, multipoint" },
+      { label: "Weight", value: "240g" },
+    ],
+    qna: [
+      {
+        question: "Do they support fast charging?",
+        answer: "Yes, 10 minutes of charging gives about 5 hours of playback.",
+      },
+      {
+        question: "Is there a companion app?",
+        answer: "Yes, the SoundHub app offers EQ presets and firmware updates.",
+      },
+    ],
   },
 ];
+
+function parseReviewText(text: string) {
+  const splitIndex = text.indexOf("\n\n");
+  if (splitIndex > 0 && splitIndex <= 120) {
+    return {
+      title: text.slice(0, splitIndex),
+      body: text.slice(splitIndex + 2),
+    };
+  }
+  return { title: null, body: text };
+}
+
+function buildReviewText(title: string, feedback: string) {
+  const trimmedTitle = title.trim();
+  const trimmedFeedback = feedback.trim();
+  if (trimmedTitle && trimmedFeedback) {
+    return `${trimmedTitle}\n\n${trimmedFeedback}`;
+  }
+  return trimmedFeedback;
+}
 
 function formatReviewDate(createdAt?: string) {
   if (!createdAt) return "";
@@ -276,7 +362,9 @@ function CustomerDetailPage() {
   const durationRef = useRef<HTMLDivElement>(null);
   const phState = usePurchaseHistoryFormState();
   const productReviewFormRef = useRef<HTMLDivElement>(null);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const productDetailsRef = useRef<HTMLDivElement>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(PURCHASE_ORDERS[0]?.id ?? null);
+  const [highlightReviewForm, setHighlightReviewForm] = useState(false);
   const selectedOrder =
     PURCHASE_ORDERS.find((order) => order.id === selectedOrderId) ?? null;
   const activeProductItem = selectedOrder?.item ?? PURCHASE_ORDERS[0].item;
@@ -457,11 +545,28 @@ function CustomerDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [durationOpen]);
 
+  useEffect(() => {
+    if (!highlightReviewForm) return;
+    const timer = window.setTimeout(() => setHighlightReviewForm(false), 4500);
+    return () => window.clearTimeout(timer);
+  }, [highlightReviewForm]);
+
+  const handleSelectOrder = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    phState.setSubTab("reviews");
+    window.requestAnimationFrame(() => {
+      productDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const handleSelectOrderForReview = (orderId: string) => {
     setSelectedOrderId(orderId);
     setReviewSubmitError(null);
     phState.resetForm();
-    productReviewFormRef.current?.scrollIntoView({ behavior: "smooth" });
+    setHighlightReviewForm(true);
+    window.requestAnimationFrame(() => {
+      productReviewFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   };
 
   const handleProductReviewSubmit = async (e: FormEvent) => {
@@ -474,10 +579,10 @@ function CustomerDetailPage() {
       await createReviewMutation.mutateAsync({
         order: selectedOrder.orderId,
         item: selectedOrder.item,
-        text: phState.feedback.trim(),
+        text: buildReviewText(phState.title, phState.feedback),
         stars: phState.rating,
         published: true,
-        author: phState.title.trim() || CUSTOMER_NAME,
+        author: CUSTOMER_NAME,
         avatar: resolveAvatarUrl(USER_AVATAR),
         images: phState.images.map((url) => ({
           url,
@@ -502,6 +607,15 @@ function CustomerDetailPage() {
     >
       <style>{`
         .ai-card-gradient { background: linear-gradient(90deg, #f5f3ff 0%, #faebff 100%); }
+        @keyframes reviewFormGlow {
+          0%, 100% { box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.25), 0 0 0 0 rgba(255, 107, 0, 0.1); }
+          50% { box-shadow: 0 0 0 4px rgba(255, 107, 0, 0.45), 0 0 28px rgba(255, 107, 0, 0.3); }
+        }
+        .review-form-highlight {
+          animation: reviewFormGlow 1.1s ease-in-out 4;
+          border-radius: 16px;
+          background: linear-gradient(180deg, rgba(255, 107, 0, 0.06) 0%, rgba(255, 255, 255, 1) 55%);
+        }
       `}</style>
       <div
         className="mx-auto flex bg-white overflow-hidden"
@@ -770,11 +884,20 @@ function CustomerDetailPage() {
                 <PurchaseHistoryMain
                   state={phState}
                   orders={filteredPurchaseOrders}
+                  selectedOrder={selectedOrder}
                   reviews={productReviews}
                   reviewCount={productReviewCount}
                   activeProductItem={activeProductItem}
                   selectedOrderId={selectedOrderId}
+                  onSelectOrder={handleSelectOrder}
                   onWriteReview={handleSelectOrderForReview}
+                  onTogglePublished={(reviewId: string, published: boolean) =>
+                    updatePublishedMutation.mutate({ reviewId, published })
+                  }
+                  onDeleteReview={(reviewId: string) => deleteReviewMutation.mutate(reviewId)}
+                  isUpdatingReview={updatePublishedMutation.isPending}
+                  isDeletingReview={deleteReviewMutation.isPending}
+                  productDetailsRef={productDetailsRef}
                   hasActiveSearch={productSearch.trim().length > 0}
                 />
               )}
@@ -1188,6 +1311,7 @@ function CustomerDetailPage() {
                   onSubmit={handleProductReviewSubmit}
                   isSubmitting={createReviewMutation.isPending}
                   submitError={reviewSubmitError}
+                  highlightForm={highlightReviewForm}
                   formRef={productReviewFormRef}
                 />
               </aside>
@@ -1443,6 +1567,8 @@ type ProductReview = {
   avatar?: string;
   stars: number;
   text: string;
+  published?: boolean;
+  order?: string;
   createdAt?: string;
   images?: Array<{ url: string; uploadedAt: string }>;
 };
@@ -1550,17 +1676,28 @@ const PRODUCT_IMAGES = {
 function PurchaseOrderCard({
   order,
   isSelected,
+  onSelect,
   onWriteReview,
 }: {
   order: PurchaseOrder;
   isSelected: boolean;
+  onSelect: () => void;
   onWriteReview: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <section
-      className={`rounded-xl bg-white shadow-sm overflow-hidden transition-all ${
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`rounded-xl bg-white shadow-sm overflow-hidden transition-all cursor-pointer hover:shadow-md hover:border-[#ff6b00]/40 ${
         isSelected
           ? "border-2 ring-2 ring-[#ff6b00]/20"
           : "border border-gray-200"
@@ -1668,7 +1805,10 @@ function PurchaseOrderCard({
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={onWriteReview}
+              onClick={(e) => {
+                e.stopPropagation();
+                onWriteReview();
+              }}
               className="text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90"
               style={{ backgroundColor: BRAND }}
             >
@@ -1691,6 +1831,7 @@ function PurchaseOrderCard({
 
             <button
               type="button"
+              onClick={(e) => e.stopPropagation()}
               className="border border-gray-300 px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-50"
             >
               Buy Again
@@ -1701,23 +1842,139 @@ function PurchaseOrderCard({
     </section>
   );
 }
+function PurchaseHistoryReviewCard({
+  review,
+  onTogglePublished,
+  onDelete,
+  isUpdating,
+  isDeleting,
+}: {
+  review: ProductReview;
+  onTogglePublished?: () => void;
+  onDelete?: () => void;
+  isUpdating?: boolean;
+  isDeleting?: boolean;
+}) {
+  const published = review.published ?? true;
+  const { title, body } = parseReviewText(review.text);
+
+  return (
+    <article className="bg-white p-5 rounded-xl border border-gray-200">
+      <div className="flex justify-between items-start mb-3 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <img
+            src={resolveAvatarUrl(review.avatar)}
+            alt={review.author}
+            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+          />
+          <div className="min-w-0">
+            <h4 className="text-sm font-bold text-gray-900">{review.author}</h4>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Reviewed by <span className="font-semibold text-gray-700">{review.author}</span>
+              {review.order ? ` · ${review.order}` : ""}
+            </p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <div className="flex" style={{ color: BRAND }}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className="w-3.5 h-3.5" filled={i < review.stars} />
+                ))}
+              </div>
+              <span className="text-xs text-gray-500">{formatReviewDate(review.createdAt)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {published ? (
+            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded">
+              Published
+            </span>
+          ) : (
+            <span className="bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded">
+              Unpublished
+            </span>
+          )}
+          {onTogglePublished && (
+            <button
+              type="button"
+              onClick={onTogglePublished}
+              disabled={isUpdating}
+              className="inline-flex h-7 items-center rounded-md border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {published ? "Unpublish" : "Publish"}
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={isDeleting}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-100 text-red-500 hover:bg-red-50 disabled:opacity-50"
+              title="Delete review"
+              aria-label="Delete review"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 7h12M10 11v6m4-6v6M9 7l1-2h4l1 2m-8 0 1 14h8l1-14"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+      {title && <p className="text-sm font-bold text-gray-900 mb-2">{title}</p>}
+      <div className="flex gap-4 items-start">
+        <p className="text-sm text-gray-800 leading-relaxed flex-1 min-w-0">{body}</p>
+        {review.images && review.images.length > 0 && (
+          <div className="flex gap-2 flex-shrink-0">
+            {review.images.map((image, idx) => (
+              <img
+                key={idx}
+                src={image.url}
+                alt={`Review image ${idx + 1}`}
+                className="h-20 w-20 object-cover rounded-md border border-gray-200"
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function PurchaseHistoryMain({
   state,
   orders,
+  selectedOrder,
   reviews,
   reviewCount,
   activeProductItem,
   selectedOrderId,
+  onSelectOrder,
   onWriteReview,
+  onTogglePublished,
+  onDeleteReview,
+  isUpdatingReview,
+  isDeletingReview,
+  productDetailsRef,
   hasActiveSearch,
 }: {
   state: PHState;
   orders: PurchaseOrder[];
+  selectedOrder: PurchaseOrder | null;
   reviews: ProductReview[];
   reviewCount: number;
   activeProductItem: string;
   selectedOrderId: string | null;
+  onSelectOrder: (orderId: string) => void;
   onWriteReview: (orderId: string) => void;
+  onTogglePublished: (reviewId: string, published: boolean) => void;
+  onDeleteReview: (reviewId: string) => void;
+  isUpdatingReview: boolean;
+  isDeletingReview: boolean;
+  productDetailsRef: React.RefObject<HTMLDivElement | null>;
   hasActiveSearch: boolean;
 }) {
   const { subTab, setSubTab } = state;
@@ -1754,10 +2011,26 @@ function PurchaseHistoryMain({
               key={order.id}
               order={order}
               isSelected={selectedOrderId === order.id}
+              onSelect={() => onSelectOrder(order.id)}
               onWriteReview={() => onWriteReview(order.id)}
             />
           ))
         )}
+      </div>
+
+      {!selectedOrder ? (
+        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center mb-8">
+          <p className="text-sm text-gray-500">
+            Click a product card above to view reviews, specifications, and support Q&amp;A.
+          </p>
+        </div>
+      ) : (
+      <div ref={productDetailsRef} className="scroll-mt-6">
+      <div className="mb-4">
+        <h3 className="text-lg font-bold text-gray-900">{selectedOrder.item}</h3>
+        <p className="text-sm text-gray-500">
+          Viewing details for order {selectedOrder.orderId}
+        </p>
       </div>
 
       <nav className="flex gap-8 border-b border-gray-200 mb-6">
@@ -1829,48 +2102,18 @@ function PurchaseHistoryMain({
               </div>
             ) : (
               reviews.map((r) => (
-                <article key={r._id} className="bg-white p-5 rounded-xl border border-gray-200">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={resolveAvatarUrl(r.avatar)}
-                        alt={r.author}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                      <div>
-                        <h4 className="text-sm font-bold">{r.author}</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="flex" style={{ color: BRAND }}>
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star key={i} className="w-3.5 h-3.5" filled={i < r.stars} />
-                            ))}
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {formatReviewDate(r.createdAt)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded">
-                      Verified Purchase
-                    </span>
-                  </div>
-                  <div className="flex gap-4 items-start">
-                    <p className="text-sm text-gray-800 leading-relaxed flex-1 min-w-0">{r.text}</p>
-                    {r.images && r.images.length > 0 && (
-                      <div className="flex gap-2 flex-shrink-0">
-                        {r.images.map((image, idx) => (
-                          <img
-                            key={idx}
-                            src={image.url}
-                            alt={`Review image ${idx + 1}`}
-                            className="h-20 w-20 object-cover rounded-md border border-gray-200"
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </article>
+                <PurchaseHistoryReviewCard
+                  key={r._id}
+                  review={r}
+                  onTogglePublished={
+                    r._id
+                      ? () => onTogglePublished(r._id as string, !(r.published ?? true))
+                      : undefined
+                  }
+                  onDelete={r._id ? () => onDeleteReview(r._id as string) : undefined}
+                  isUpdating={isUpdatingReview}
+                  isDeleting={isDeletingReview}
+                />
               ))
             )}
           </div>
@@ -1887,14 +2130,30 @@ function PurchaseHistoryMain({
       )}
 
       {subTab === "specs" && (
-        <div className="bg-white p-6 rounded-xl border border-gray-200 text-sm text-gray-600">
-          Product specifications coming soon.
+        <div className="bg-white p-6 rounded-xl border border-gray-200">
+          <h4 className="text-sm font-bold text-gray-900 mb-4">Product Specifications</h4>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {selectedOrder.specs.map((spec) => (
+              <div key={spec.label} className="rounded-lg bg-gray-50 px-4 py-3 border border-gray-100">
+                <dt className="text-[11px] uppercase tracking-wide text-gray-500">{spec.label}</dt>
+                <dd className="text-sm font-semibold text-gray-900 mt-1">{spec.value}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       )}
       {subTab === "qna" && (
-        <div className="bg-white p-6 rounded-xl border border-gray-200 text-sm text-gray-600">
-          Support Q&amp;A coming soon.
+        <div className="bg-white p-6 rounded-xl border border-gray-200 space-y-4">
+          <h4 className="text-sm font-bold text-gray-900 mb-2">Support Q&amp;A</h4>
+          {selectedOrder.qna.map((entry) => (
+            <div key={entry.question} className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+              <p className="text-sm font-bold text-gray-900">{entry.question}</p>
+              <p className="text-sm text-gray-600 mt-2 leading-relaxed">{entry.answer}</p>
+            </div>
+          ))}
         </div>
+      )}
+      </div>
       )}
     </div>
   );
@@ -1909,6 +2168,7 @@ function PurchaseHistorySidebar({
   onSubmit,
   isSubmitting,
   submitError,
+  highlightForm,
   formRef,
 }: {
   state: PHState;
@@ -1919,6 +2179,7 @@ function PurchaseHistorySidebar({
   onSubmit: (e: FormEvent) => void;
   isSubmitting: boolean;
   submitError: string | null;
+  highlightForm: boolean;
   formRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const {
@@ -1974,11 +2235,19 @@ function PurchaseHistorySidebar({
         </div>
       </div>
 
-      <div ref={formRef} className="p-6 border-b border-gray-100">
+      <div
+        ref={formRef}
+        className={`p-6 border-b border-gray-100 transition-all ${highlightForm ? "review-form-highlight -mx-2 px-8" : ""}`}
+      >
         <h4 className="text-sm font-bold text-gray-900 mb-2">Write a Review</h4>
+        {highlightForm && (
+          <p className="text-xs font-bold mb-3 px-3 py-2 rounded-lg border border-[#ff6b00]/30 bg-[#ff6b00]/10" style={{ color: BRAND }}>
+            Write your review here
+          </p>
+        )}
         {selectedOrder ? (
           <p className="text-sm font-semibold mb-4" style={{ color: BRAND }}>
-            Add review for {selectedOrder.item}
+            Add review for {selectedOrder.item} as {CUSTOMER_NAME}
           </p>
         ) : (
           <p className="text-sm text-gray-500 mb-4">
