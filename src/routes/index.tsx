@@ -68,7 +68,7 @@ const PURCHASE_ORDERS: PurchaseOrder[] = [
     originalPrice: "₹2,280.00",
     color: "Dark Black",
     orderDate: "June 07, 2026",
-    image: "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
+    image: "https://m.media-amazon.com/images/I/61kFL7ywsZS.jpg",
     status: "Delivered",
     panelBg: "#fffff",
     media: {
@@ -83,15 +83,15 @@ const PURCHASE_ORDERS: PurchaseOrder[] = [
     orderId: "#SaaS-77102",
     price: "₹1,24,900.00",
     color: "Space Gray",
-    image: "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
+    image: "https://m.media-amazon.com/images/I/51F-Ok9xuzL.jpg",
     orderDate: "Dec 20, 2023",
     status: "Delivered",
-    panelBg: "#f5f5f7",
+    panelBg: "#ffffff",
     media: {
       type: "sketchfab",
       title: "SoundHub 7G Black Headphones",
       src:
-      "https://sketchfab.com/models/0b2d0f88b95c4d40952990e9e07c952a/embed?autospin=1&autostart=1&transparent=1&ui_theme=dark",    },
+      "https://sketchfab.com/models/05735b74d3524f00b648231138122a28/embed?autospin=1&autostart=1&preload=1&transparent=1&ui_theme=dark",    },
   },
  
   {
@@ -100,32 +100,36 @@ const PURCHASE_ORDERS: PurchaseOrder[] = [
     orderId: "#SaaS-65431",
     price: "₹8,499.00",
     originalPrice: "₹9,999.00",
-    image: "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
+    image: "https://www.sathya.store/img/product/u34NTDEMJJMfzGZO.webp",
     color: "Brown Leather",
     orderDate: "Nov 05, 2023",
     status: "Delivered",
-    panelBg: "#faf8f5",
+    panelBg: "#ffffff",
     media: {
       type: "sketchfab",
       title: "Samsung Galaxy Buds4 Pro Pink Gold",
-      src: "https://sketchfab.com/models/a903a7736dbe4b8f966bb90fef020490/embed?autospin=1&autostart=1&transparent=1&ui_theme=dark",
+     src:
+  "https://sketchfab.com/models/5d8aea0a780b49fa89c9c205912414e3/embed?autospin=1&autostart=1&preload=1&transparent=1&ui_theme=dark",
       
     },
   },
   {
     id: "4",
-    item: "SoundHub Pro Wireless Earbuds",
-    orderId: "#SaaS-90344",
-    price: "₹2,499.00",
-    image: "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
-    originalPrice: "₹3,199.00",
-    color: "Matte White",
-    orderDate: "Mar 14, 2026",
-    status: "Shipped",
-    panelBg: "#fff8f3",
+    item: "Classic Leather Timepiece",
+    orderId: "#SaaS-65431",
+    price: "₹8,499.00",
+    originalPrice: "₹9,999.00",
+    image: "https://www.flashify.in/cdn/shop/products/61sRKTAfrhL.jpg?v=1733946410&width=2560",
+    color: "Brown Leather",
+    orderDate: "Nov 05, 2023",
+    status: "Delivered",
+    panelBg: "#ffffff",
     media: {
-      type: "image",
-      src: "https://sketchfab.com/models/87ddc4f9942b41bab65375ec5895e9c2/embed?autospin=1&preload=1&transparent=1&ui_theme=dark",      alt: "SoundHub Pro Wireless Earbuds",
+      type: "sketchfab",
+      title: "Samsung Galaxy Buds4 Pro Pink Gold",
+     src:
+  "https://sketchfab.com/models/09e94506c52f416b963eeec023468c82/embed?autospin=1&autostart=1&preload=1&transparent=1&ui_theme=light",
+      
     },
   },
 ];
@@ -1373,25 +1377,16 @@ const PRODUCT_IMAGES = {
     "https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png",
 
   macbook:
-    "https://pngimg.com/uploads/macbook/macbook_PNG65.png",
+    "https://m.media-amazon.com/images/I/51F-Ok9xuzL.jpg",
 
   earbuds:
     "https://pngimg.com/uploads/airpods/airpods_PNG17.png",
 
   watch:
-    "https://pngimg.com/uploads/watches/watches_PNG9894.png",
+    "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/airpods-pro-3-hero-select-202509_FMT_WHH?wid=1200&hei=630&fmt=jpeg&qlt=95&.v=1758077264181",
 
-  speaker:
-    "https://pngimg.com/uploads/speaker/speaker_PNG36.png",
 
-  keyboard:
-    "https://pngimg.com/uploads/keyboard/keyboard_PNG101836.png",
-
-  mouse:
-    "https://pngimg.com/uploads/computer_mouse/computer_mouse_PNG7674.png",
-
-  camera:
-    "https://pngimg.com/uploads/camera/camera_PNG102.png",
+  
 };
 function PurchaseOrderCard({
   order,
@@ -1426,17 +1421,17 @@ function PurchaseOrderCard({
             >
               {/* Thumbnail */}
               <img
-                src="https://png.pngtree.com/png-vector/20250321/ourmid/pngtree-wireless-headphone-png-image_15830312.png"
-                alt={order.item}
-                className={`absolute inset-0 w-full h-full object-contain transition-all duration-300 ${
-                  hovered ? "opacity-0 scale-95" : "opacity-100 scale-100"
-                }`}
-              />
+  src={order.image}
+  alt={order.item}
+  className={`absolute inset-0 w-full h-full object-contain transition-all duration-300 ${
+    hovered ? "opacity-0 scale-95" : "opacity-100 scale-100"
+  }`}
+/>
 
               {/* Sketchfab Model */}
               <iframe
                 title={order.media.title}
-                className={`absolute inset-0 w-full h-full border-0 transition-all duration-300 ${
+                className={`absolute inset-0 w-full h-full border-0 transition-all duration-300 bg-transparent ${
                   hovered
                     ? "opacity-100 scale-100"
                     : "opacity-0 scale-105 pointer-events-none"
@@ -1444,6 +1439,7 @@ function PurchaseOrderCard({
                 frameBorder="0"
                 allowFullScreen
                 loading="eager"
+              
                 allow="autoplay; fullscreen; xr-spatial-tracking"
                 src={order.media.src}
               />
