@@ -1370,13 +1370,13 @@ function CustomerDetailPage() {
                   </div>
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-bold text-gray-900">Bagus Fikri</p>
+                      <p className="text-xs font-bold text-gray-900">Palampur Himachal Pradesh</p>
                       <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                        2118 Thornridge Cir. Syracuse,
+                        Vill Henja PO Bhawarna,
                         <br />
-                        Connecticut 35624
+                        Kangra District
                         <br />
-                        United State
+                        India
                       </p>
                     </div>
                     <a className="text-[10px] font-bold text-gray-900 underline" href="#">
@@ -1394,11 +1394,11 @@ function CustomerDetailPage() {
                   </div>
                   <div className="space-y-3">
                     <div className="inline-flex px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700">
-                      bagus.fikri@mail.com
+                      tarunchoudhary954@gmail.com
                     </div>
                     <div className="block">
                       <div className="inline-flex px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-xs font-medium text-gray-700">
-                        +(22)-789-907
+                       +91-9805394341
                       </div>
                     </div>
                   </div>
