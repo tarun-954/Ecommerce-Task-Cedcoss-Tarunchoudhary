@@ -79,12 +79,12 @@ const PURCHASE_ORDERS: PurchaseOrder[] = [
   },
   {
     id: "2",
-    item: 'MacBook Pro 14" M1 Chip',
+    item: 'SoundHub Extra Base Headphones',
     orderId: "#SaaS-77102",
     price: "₹1,24,900.00",
-    color: "Space Gray",
+    color: "Space Black",
     image: "https://m.media-amazon.com/images/I/51F-Ok9xuzL.jpg",
-    orderDate: "Dec 20, 2023",
+    orderDate: "June 01, 2026",
     status: "Delivered",
     panelBg: "#ffffff",
     media: {
@@ -96,32 +96,32 @@ const PURCHASE_ORDERS: PurchaseOrder[] = [
  
   {
     id: "3",
-    item: "Classic Leather Timepiece",
+    item: "Classic Leather SoundHub Headphones",
     orderId: "#SaaS-65431",
     price: "₹8,499.00",
     originalPrice: "₹9,999.00",
-    image: "https://www.sathya.store/img/product/u34NTDEMJJMfzGZO.webp",
-    color: "Brown Leather",
-    orderDate: "Nov 05, 2023",
+    image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRJPy_L-RNnDlmU1MNqhIvx-b5hBEmipkmsfw&s",
+    color: "Brown Leather Black",
+    orderDate: "May 23, 2026",
     status: "Delivered",
     panelBg: "#ffffff",
     media: {
       type: "sketchfab",
       title: "Samsung Galaxy Buds4 Pro Pink Gold",
      src:
-  "https://sketchfab.com/models/5d8aea0a780b49fa89c9c205912414e3/embed?autospin=1&autostart=1&preload=1&transparent=1&ui_theme=dark",
+  "https://sketchfab.com/models/a65354bb59af4d358701c91b39012d50/embed?autospin=1&autostart=1&preload=1&transparent=1&ui_theme=dark",
       
     },
   },
   {
     id: "4",
-    item: "Classic Leather Timepiece",
+    item: "SoundHub Pro 3",
     orderId: "#SaaS-65431",
     price: "₹8,499.00",
     originalPrice: "₹9,999.00",
     image: "https://www.flashify.in/cdn/shop/products/61sRKTAfrhL.jpg?v=1733946410&width=2560",
-    color: "Brown Leather",
-    orderDate: "Nov 05, 2023",
+    color: "Cream White",
+    orderDate: "Feb 11, 2026",
     status: "Delivered",
     panelBg: "#ffffff",
     media: {
@@ -612,7 +612,7 @@ function CustomerDetailPage() {
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5" />
                         Active
                       </span>
-                      <span className="text-sm text-gray-500">Customer ID #56578</span>
+                      <span className="text-sm text-gray-500">Customer ID #12218125</span>
                     </div>
                   </div>
                 </div>
@@ -1861,7 +1861,7 @@ function PurchaseHistorySidebar({
           {PURCHASE_ORDERS.slice(1).map((order) => {
             const thumb =
               order.media.type === "sketchfab"
-                ? order.media.src
+                ? order.image
                 : "https://sketchfab.com/models/a903a7736dbe4b8f966bb90fef020490/embed?autospin=1&autostart=1&transparent=1&ui_theme=dark";
 
             return (
