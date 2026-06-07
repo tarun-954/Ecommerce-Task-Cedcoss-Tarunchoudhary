@@ -2,8 +2,6 @@
 
 ## Overview
 
-Your review tab is now fully connected to MongoDB with complete image upload and display functionality. Here's what has been implemented:
-
 ## 🎯 What's New
 
 ### 1. **Backend Infrastructure** 
